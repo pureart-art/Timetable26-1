@@ -33,9 +33,6 @@ const DAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
 const FIRST_DAY_COL = 2; // C열
 const BLOCK_ROWS = 10;   // 헤더 1 + 교시 9
 
-/* 알려진 블록색 → 과목명 (범례용, 그 외 색은 이름 없이 스와치만) */
-const KNOWN_BLOCKS = { '#FDCBB5': '검사·영상의학', '#FFC000': '임상표현', '#FCE4D6': '검사·영상의학' };
-
 /* ===== 상태 ===== */
 const state = {
   weeks: [],            // 파싱된 주 블록들
@@ -418,8 +415,6 @@ function renderMonth() {
     }
     grid.appendChild(div);
   }
-  const monthWeeks = state.weeks.filter(w2 => w2.monday < first + daysInMonth && w2.monday + 7 > first);
-  renderLegend({ cells: monthWeeks.flatMap(w2 => w2.cells) });
   renderMeta();
 }
 
@@ -495,7 +490,6 @@ function renderWeek() {
   }
 
   renderDayTabs(narrow, w, todayD);
-  renderLegend(w);
   renderMeta();
 }
 
@@ -514,25 +508,6 @@ function renderDayTabs(narrow, w, todayD) {
     b.addEventListener('click', () => { state.dayIdx = d; render(); });
     tabs.appendChild(b);
   }
-}
-
-function renderLegend(w) {
-  const seen = new Map();
-  for (const cm of w.cells) if (cm.bgRaw && !cm.isEmpty) {
-    const key = cm.bg;
-    if (!seen.has(key)) seen.set(key, KNOWN_BLOCKS[cm.bgRaw] || '');
-  }
-  let html = '<span class="tk">칸 배경(과목 블록):</span> ';
-  for (const [hex, name] of seen) {
-    html += '<span><span class="sw" style="background:' + hex + '"></span>' + (name ? name + '&nbsp;&nbsp;' : '') + '</span>';
-  }
-  html += '&nbsp;';
-  html += '<span><span class="sw" style="background:#FFFFFF"></span>점심·기타(채우기 없음)</span><br>' +
-    '<span class="tk">글자색(시트 그대로):</span> <span style="color:#000">■ 검정 = 과목·교수</span>&nbsp;&nbsp;' +
-    '<span style="color:#2E75B6">■ 파랑 = 초안자/검안자 줄·점심 그룹</span>&nbsp;&nbsp;' +
-    '<span style="color:#FF0000">■ 빨강 = 시험/평가</span><br>' +
-    '3번째 줄 = 초안자/검안자 · 점심 칸 = 과목 (그룹N: 그룹장/학습부장) · 빈 칸 = 공강 · 병합된 칸 = 연강 · 토 파랑 · 일 빨강';
-  $('legend').innerHTML = html;
 }
 
 function renderMeta() {
