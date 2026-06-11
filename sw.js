@@ -1,7 +1,7 @@
 /* 시간표 PWA 서비스 워커
-   - 앱 셸: 캐시 우선(버전 갱신 시 새로 받음)
+   - 모든 요청: 네트워크 우선(항상 최신), 실패(오프라인) 시 캐시
    - Sheets API: 네트워크 우선, 실패 시 마지막 성공 응답 */
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL_CACHE = 'shell-' + VERSION;
 const DATA_CACHE = 'data-' + VERSION;
 const SHELL = [
@@ -36,14 +36,15 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (e.request.method === 'GET' && url.origin === self.location.origin) {
+    /* 네트워크 우선: 코드/가이드 수정이 새로고침 즉시 반영. 오프라인이면 캐시 */
     e.respondWith(
-      caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
+      fetch(e.request).then(res => {
         if (res.ok) {
           const copy = res.clone();
           caches.open(SHELL_CACHE).then(c => c.put(e.request, copy));
         }
         return res;
-      }))
+      }).catch(() => caches.match(e.request).then(hit => hit || Response.error()))
     );
   }
 });
