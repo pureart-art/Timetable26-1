@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "timetable",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "C:\\Users\\wbnuj\\timetable-pwa\\tools\\serve.ps1", "-Port", "8741"],
+      "port": 8741
+    }
+  ]
+}

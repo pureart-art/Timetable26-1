@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>의학과 2학년 시간표</title>
+<meta name="theme-color" content="#f0eee8">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="시간표">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="page">
+  <header class="topbar">
+    <div class="titlewrap">
+      <div class="title">의학과 2학년 시간표 — <span id="weekLabel">·</span><small id="weekRange"></small></div>
+      <div class="meta"><span id="srcBadge" class="badge"></span><span id="updated"></span></div>
+    </div>
+    <nav class="weeknav">
+      <button id="btnPrev" class="nbtn" aria-label="이전 주">◀</button>
+      <button id="btnToday" class="nbtn today-btn">오늘</button>
+      <button id="btnNext" class="nbtn" aria-label="다음 주">▶</button>
+      <button id="btnView" class="nbtn viewtoggle" title="주간/요일 보기 전환">주간</button>
+    </nav>
+  </header>
+
+  <div id="daytabs" class="daytabs" hidden></div>
+  <div id="grid" class="gridc" aria-live="polite"></div>
+
+  <div class="legend" id="legend"></div>
+  <div id="notice" class="notice" hidden></div>
+</div>
+
+<div id="sheetpop" class="sheetpop" hidden>
+  <div class="sheetpop-inner">
+    <div id="popBody"></div>
+    <button id="popClose" class="nbtn">닫기</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

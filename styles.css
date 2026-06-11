@@ -1,0 +1,67 @@
+/* ===== 레퍼런스(시간표_엑셀형식_2주_전체.html)와 픽셀 동일한 격자 ===== */
+*{box-sizing:border-box}
+body{margin:0;padding:22px 18px;background:#f0eee8;color:#1f1e1c;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1080px;margin:0 auto}
+.title{font-size:18px;font-weight:500}
+.title small{font-weight:400;color:#5f5e5a;margin-left:8px;font-variant-numeric:tabular-nums}
+
+.gridc{display:grid;grid-template-columns:36px 64px repeat(7,minmax(0,1fr));grid-auto-rows:minmax(52px,auto);background:#fff;border-right:0.5px solid #CFCCC4;border-bottom:0.5px solid #CFCCC4;border-radius:8px;overflow:hidden;margin-top:12px}
+.cell{border-top:0.5px solid #CFCCC4;border-left:0.5px solid #CFCCC4;padding:5px 7px;min-width:0;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.hdr{background:#F1EFE8;padding:6px 2px}
+.hdr.wknd{background:#E7EEF6}
+.hdr.sun{background:#F7D2D2}
+.cor{background:#F1EFE8;font-size:11px;color:#73726c}
+.dn{font-size:13px;font-weight:500;color:#3a3a37}
+.dd{font-size:11px;color:#73726c;font-variant-numeric:tabular-nums}
+.per{background:#F1EFE8;font-size:12px;font-weight:500;color:#5f5e5a}
+.tim{background:#F1EFE8;font-size:11px;color:#8a897f;font-variant-numeric:tabular-nums;line-height:1.2}
+.l1,.l2,.l3{overflow-wrap:break-word;font-weight:600}
+.l1{font-size:12px;line-height:1.26;color:#000}
+.l2{font-size:11px;line-height:1.22;margin-top:2px;color:#000}
+.l3{font-size:11px;line-height:1.22;margin-top:3px;color:#5B9BD5}
+.legend{margin-top:12px;font-size:12px;color:#5f5e5a;line-height:1.8}
+.sw{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:3px;border:0.5px solid #b5b2aa}
+.tk{font-weight:500}
+
+/* ===== 오늘/현재 교시 강조 ===== */
+.hdr.todaycol{box-shadow:inset 0 0 0 2px #5B9BD5;border-radius:2px}
+.tim.nowper,.per.nowper{background:#FDF3D0;color:#4a4438}
+.cell.todaybody{box-shadow:inset 2px 0 0 0 rgba(91,155,213,.45), inset -2px 0 0 0 rgba(91,155,213,.45)}
+.cell.todaybody.lastrow{box-shadow:inset 2px 0 0 0 rgba(91,155,213,.45), inset -2px 0 0 0 rgba(91,155,213,.45), inset 0 -2px 0 0 rgba(91,155,213,.45)}
+
+/* ===== 앱 크롬 (헤더/내비/배지) ===== */
+.topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.meta{font-size:11px;color:#8a897f;margin-top:3px;font-variant-numeric:tabular-nums}
+.badge{display:inline-block;border:0.5px solid #b5b2aa;border-radius:4px;padding:0 5px;margin-right:6px;font-size:10px;color:#73726c;vertical-align:1px}
+.badge.live{color:#2e7d46;border-color:#9fc7ab}
+.weeknav{display:flex;gap:6px}
+.nbtn{font:inherit;font-size:12px;font-weight:500;color:#3a3a37;background:#fff;border:0.5px solid #b5b2aa;border-radius:6px;padding:5px 11px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.nbtn:active{background:#eceae3}
+.today-btn{color:#2E75B6}
+.notice{margin-top:10px;font-size:12px;color:#8a5a16;background:#FFF6E0;border:0.5px solid #E8D49A;border-radius:6px;padding:8px 10px}
+
+/* ===== 좁은 화면: 단일 요일 보기 ===== */
+.daytabs{display:flex;gap:4px;margin-top:12px}
+.dtab{flex:1;text-align:center;font-size:12px;font-weight:500;color:#5f5e5a;background:#F1EFE8;border:0.5px solid #CFCCC4;border-radius:6px;padding:6px 0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.dtab .dtd{display:block;font-size:10px;font-weight:400;color:#8a897f;font-variant-numeric:tabular-nums}
+.dtab.sat{background:#E7EEF6}
+.dtab.sun{background:#F7D2D2}
+.dtab.sel{outline:2px solid #5B9BD5;outline-offset:-2px}
+.gridc.dayview{grid-template-columns:36px 64px minmax(0,1fr)}
+.viewtoggle{display:none}
+@media (max-width:719px){
+  body{padding:14px 10px}
+  .viewtoggle{display:block}
+  .gridc.weekwide{min-width:980px}
+  .gridwrap-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
+
+/* ===== 탭 → 전체 텍스트 팝업 ===== */
+.sheetpop{position:fixed;inset:0;background:rgba(31,30,28,.35);display:flex;align-items:flex-end;justify-content:center;z-index:50}
+.sheetpop[hidden]{display:none}
+.sheetpop-inner{background:#fff;border-radius:12px 12px 0 0;max-width:560px;width:100%;padding:18px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -4px 24px rgba(0,0,0,.18);text-align:center}
+.sheetpop-inner .l1{font-size:15px}
+.sheetpop-inner .l2{font-size:13px;margin-top:5px}
+.sheetpop-inner .l3{font-size:13px;margin-top:6px}
+.sheetpop-inner .nbtn{margin-top:14px;width:100%}
+.poptime{font-size:11px;color:#8a897f;margin-bottom:6px;font-variant-numeric:tabular-nums}
