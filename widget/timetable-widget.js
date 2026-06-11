@@ -1,7 +1,7 @@
-// TIMETABLE_WIDGET v5 — 의학과 2학년 시간표 Scriptable 위젯 본체
+// TIMETABLE_WIDGET v6 — 의학과 2학년 시간표 Scriptable 위젯 본체
 // 로더가 이 파일을 받아 실행합니다. 직접 수정할 일은 없습니다.
 // 모든 크기에서 이번 주 주간 격자를 보여줍니다.
-// v5: 공휴일(헤더 날짜 빨간 글자) 요일 헤더를 일요일과 같은 분홍으로.
+// v6: 시험(제목 줄 빨강) 칸 강조 — 진한 배경 + 빨간 테두리.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -197,7 +197,10 @@ async function loadWeekBlock(headerRow, monday) {
       const defColor = colorToHex(fgOf(fmt.textFormat)) || '#000000';
       const text = (cell && cell.formattedValue) || '';
       const lines = text ? splitLines(text, cell.textFormatRuns, defColor) : [];
-      cells.push({ p, d, rowSpan, colSpan, lines, bg: lightenBg(bgRaw), isEmpty: lines.length === 0 });
+      cells.push({
+        p, d, rowSpan, colSpan, lines, bg: lightenBg(bgRaw), isEmpty: lines.length === 0,
+        isExam: lines.length > 0 && isRedHex(lines[0].color),
+      });
     }
   }
   return { label, monday, cells, holidays };
@@ -295,16 +298,18 @@ function buildWeekWidget(week, fromCache) {
   for (const cm of week.cells) {
     const x = gx(cm.d), y = gy(cm.p);
     const ww = dayW * cm.colSpan, hh = rowH * cm.rowSpan;
-    if (cm.bg && cm.bg !== '#FFFFFF') {
-      ctx.setFillColor(new Color(cm.bg));
+    const cellBg = cm.isExam ? '#FAD0CC' : cm.bg;
+    if (cellBg && cellBg !== '#FFFFFF') {
+      ctx.setFillColor(new Color(cellBg));
       ctx.fillRect(new Rect(x, y, ww, hh));
     }
     strokeRectPx(x, y, ww, hh);
+    if (cm.isExam) strokeRectPx(x + 1, y + 1, ww - 2, hh - 2, new Color('#FF3B30'), 2);
     if (!cm.isEmpty) {
       const l1 = cm.lines[0];
       const showSub = big && cm.lines.length > 1 && hh > 42;
       ctx.setTextAlignedCenter();
-      ctx.setFont(Font.boldSystemFont(fTitle));
+      ctx.setFont(Font.boldSystemFont(cm.isExam ? fTitle + 1 : fTitle));
       ctx.setTextColor(new Color(l1.color && l1.color !== '#000000' ? l1.color : '#000000'));
       const titleH = Math.max(fTitle + 2, showSub ? hh * 0.55 : hh - 4);
       ctx.drawTextInRect(l1.text, new Rect(x + 2, y + (showSub ? 3 : Math.max(2, (hh - titleH) / 2)), ww - 4, titleH));

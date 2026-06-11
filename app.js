@@ -223,6 +223,8 @@ function parseGrid(api) {
           p, d, rowSpan, colSpan, lines,
           bg: lightenBg(bgRaw), bgRaw: isWhite(bgRaw) ? null : bgRaw,
           isLunch: p === 4, isEmpty: lines.length === 0,
+          /* 제목 줄이 빨간 칸 = 시험(총괄평가/재시험) → 강조 */
+          isExam: lines.length > 0 && isRedHex(lines[0].color),
         });
       }
     }
@@ -316,11 +318,11 @@ function render() {
 /* ===== 하루/주간 (엑셀 격자) ===== */
 function makeCellDiv(cellModel, gridCol, gridRow, colSpan, rowSpan, extraCls) {
   const div = document.createElement('div');
-  div.className = 'cell' + (extraCls ? ' ' + extraCls : '');
+  div.className = 'cell' + (extraCls ? ' ' + extraCls : '') + (cellModel && cellModel.isExam ? ' exam' : '');
   div.style.gridColumn = gridCol + (colSpan > 1 ? ' / span ' + colSpan : '');
   div.style.gridRow = gridRow + (rowSpan > 1 ? ' / span ' + rowSpan : '');
   if (cellModel) {
-    if (cellModel.bg && cellModel.bg !== '#FFFFFF') div.style.background = cellModel.bg;
+    if (!cellModel.isExam && cellModel.bg && cellModel.bg !== '#FFFFFF') div.style.background = cellModel.bg;
     cellModel.lines.forEach((ln, i) => {
       const el = document.createElement('div');
       el.className = i === 0 ? 'l1' : (i >= 2 && i === cellModel.lines.length - 1 ? 'l3' : 'l2');
@@ -491,8 +493,8 @@ function renderMonth() {
         slot.className = 'mslot' + (k === 2 ? ' afterlunch' : '');
         list.slice(0, 2).forEach(({ cm, first }) => {
           const chip = document.createElement('div');
-          chip.className = 'mchip' + (first ? '' : ' cont');
-          chip.style.background = cm.bg || '#FFFFFF';
+          chip.className = 'mchip' + (first ? '' : ' cont') + (cm.isExam ? ' exam' : '');
+          if (!cm.isExam) chip.style.background = cm.bg || '#FFFFFF';
           if (first) {
             chip.textContent = chipLabel(cm.lines[0].text);
             chip.title = cm.lines[0].text;
