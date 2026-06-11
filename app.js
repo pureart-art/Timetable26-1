@@ -324,6 +324,12 @@ function render() {
 function weekOfSerial(s) {
   return state.weeks.find(w => s >= w.monday && s < w.monday + 7) || null;
 }
+/* 월간 칩 라벨: "28장 " 같은 번호 접두사 제거 + 좁은 화면이면 앞 4글자만 */
+function chipLabel(text) {
+  const clean = text.replace(/^\d+장\s*/, '').trim();
+  const lim = window.innerWidth < 720 ? 4 : 12;
+  return clean.length > lim ? clean.slice(0, lim).trim() : clean;
+}
 function renderMonth() {
   const grid = $('grid');
   grid.innerHTML = '';
@@ -339,7 +345,7 @@ function renderMonth() {
   const dowMon0 = (new Date((first - 25569) * 86400000).getUTCDay() + 6) % 7; // 월=0
   const start = first - dowMon0;
   const rows = Math.ceil((dowMon0 + daysInMonth) / 7);
-  grid.style.gridTemplateRows = 'auto repeat(' + rows + ', minmax(var(--mrowh), auto))';
+  grid.style.gridTemplateRows = 'auto repeat(' + rows + ', minmax(var(--mrowh), 1fr))';
   const todaySerial = kstNow().serial;
 
   DAY_NAMES.forEach((nm, d) => {
@@ -391,7 +397,8 @@ function renderMonth() {
           chip.className = 'mchip' + (first ? '' : ' cont');
           chip.style.background = cm.bg || '#FFFFFF';
           if (first) {
-            chip.textContent = cm.lines[0].text;
+            chip.textContent = chipLabel(cm.lines[0].text);
+            chip.title = cm.lines[0].text;
             if (cm.lines[0].color && cm.lines[0].color !== '#000000') chip.style.color = cm.lines[0].color;
           }
           slot.appendChild(chip);
@@ -423,7 +430,8 @@ function renderWeek() {
   if (!w) return;
   const grid = $('grid');
   grid.innerHTML = '';
-  grid.style.gridTemplateRows = '';
+  /* 남는 세로 공간을 교시 행들이 나눠 갖도록 (화면 꽉 차게) */
+  grid.style.gridTemplateRows = 'auto repeat(9, minmax(52px, 1fr))';
   const narrow = isNarrow();
   grid.className = 'gridc ' + (narrow ? 'dayview' : 'weekwide');
 
