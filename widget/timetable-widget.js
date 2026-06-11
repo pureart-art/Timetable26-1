@@ -1,7 +1,7 @@
-// TIMETABLE_WIDGET v4 — 의학과 2학년 시간표 Scriptable 위젯 본체
+// TIMETABLE_WIDGET v5 — 의학과 2학년 시간표 Scriptable 위젯 본체
 // 로더가 이 파일을 받아 실행합니다. 직접 수정할 일은 없습니다.
 // 모든 크기에서 이번 주 주간 격자를 보여줍니다.
-// v4: 제목 줄 제거, 이미지 contain 배치(기기별 크기 차이로 잘리는 문제 수정), 교수 줄 표시 강화.
+// v5: 공휴일(헤더 날짜 빨간 글자) 요일 헤더를 일요일과 같은 분홍으로.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -36,6 +36,11 @@ function fgOf(fmt) {
   return fmt.foregroundColor || (fmt.foregroundColorStyle && fmt.foregroundColorStyle.rgbColor) || null;
 }
 function isWhite(hex) { return !hex || hex === '#FFFFFF'; }
+function isRedHex(hex) {
+  if (!hex) return false;
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return r >= 180 && g <= 115 && b <= 115;
+}
 function lightenBg(hex) {
   if (isWhite(hex)) return '#FFFFFF';
   if (BG_MAP[hex]) return BG_MAP[hex];
@@ -159,6 +164,13 @@ async function loadWeekBlock(headerRow, monday) {
   const cellAt = (lr, c) => (rowData[lr] && rowData[lr].values && rowData[lr].values[c]) || null;
   const hdrA = cellAt(0, 0);
   const label = (hdrA && hdrA.formattedValue || '').trim();
+  /* 헤더 날짜 글자가 빨간 요일 = 공휴일 */
+  const holidays = [];
+  for (let d = 0; d < 7; d++) {
+    const hc = cellAt(0, 2 + d);
+    const fg = hc && hc.effectiveFormat ? colorToHex(fgOf(hc.effectiveFormat.textFormat)) : null;
+    holidays.push(isRedHex(fg));
+  }
   const cells = [];
   const covered = new Set();
   for (let p = 0; p < 9; p++) {
@@ -188,7 +200,7 @@ async function loadWeekBlock(headerRow, monday) {
       cells.push({ p, d, rowSpan, colSpan, lines, bg: lightenBg(bgRaw), isEmpty: lines.length === 0 });
     }
   }
-  return { label, monday, cells };
+  return { label, monday, cells, holidays };
 }
 
 async function loadWeek() {
@@ -239,7 +251,8 @@ function buildWeekWidget(week, fromCache) {
   const todayD = (ts >= week.monday && ts < week.monday + 7) ? ts - week.monday : -1;
 
   for (let d = 0; d < 7; d++) {
-    const bg = d === 6 ? '#F7D2D2' : (d === 5 ? '#E7EEF6' : '#F1EFE8');
+    const isHol = d === 6 || (week.holidays && week.holidays[d]);
+    const bg = isHol ? '#F7D2D2' : (d === 5 ? '#E7EEF6' : '#F1EFE8');
     ctx.setFillColor(new Color(bg));
     ctx.fillRect(new Rect(gx(d), TOP, dayW, HDR));
     const ymd = serialToYMD(week.monday + d);

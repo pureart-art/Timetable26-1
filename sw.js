@@ -1,7 +1,7 @@
 /* 시간표 PWA 서비스 워커
    - 앱 셸: 캐시 우선(버전 갱신 시 새로 받음)
    - Sheets API: 네트워크 우선, 실패 시 마지막 성공 응답 */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL_CACHE = 'shell-' + VERSION;
 const DATA_CACHE = 'data-' + VERSION;
 const SHELL = [

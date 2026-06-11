@@ -73,6 +73,12 @@ function fgOf(fmt) {
   return fmt.foregroundColor || (fmt.foregroundColorStyle && fmt.foregroundColorStyle.rgbColor) || null;
 }
 function isWhite(hex) { return !hex || hex === '#FFFFFF'; }
+/* 시트에서 빨간 글자(공휴일 표시) 판정 */
+function isRedHex(hex) {
+  if (!hex) return false;
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return r >= 180 && g <= 115 && b <= 115;
+}
 /* 브리프 권장 매핑 (그 외 색은 HSL 명도 0.915 규칙) */
 const BG_MAP = { '#FDCBB5': '#FCE4D6', '#FFC000': '#FFF1D6' };
 function lightenBg(hex) {
@@ -179,6 +185,13 @@ function parseGrid(api) {
   const weeks = headers.map((h, wi) => {
     const aCell = getCell(rowData, h, 0);
     const label = (aCell && aCell.formattedValue || '').trim() || (wi + 1) + '주';
+    /* 헤더 날짜 글자가 빨간 요일 = 공휴일 */
+    const holidays = [];
+    for (let d = 0; d < 7; d++) {
+      const hc = getCell(rowData, h, FIRST_DAY_COL + d);
+      const fg = hc && hc.effectiveFormat ? colorToHex(fgOf(hc.effectiveFormat.textFormat)) : null;
+      holidays.push(isRedHex(fg));
+    }
     const cells = [];
     const covered = new Set();
 
@@ -213,7 +226,7 @@ function parseGrid(api) {
         });
       }
     }
-    return { label, monday: mondays[wi], cells };
+    return { label, monday: mondays[wi], cells, holidays };
   });
 
   if (!weeks.length) throw new Error('주 블록을 찾지 못했습니다');
@@ -360,7 +373,8 @@ function renderSheet(mode) {
   days.forEach((d, i) => {
     const ymd = serialToYMD(w.monday + d);
     const div = document.createElement('div');
-    div.className = 'cell hdr' + (d === 5 ? ' wknd' : '') + (d === 6 ? ' sun' : '') + (d === todayD ? ' todaycol' : '');
+    const isHol = d === 6 || (w.holidays && w.holidays[d]);
+    div.className = 'cell hdr' + (isHol ? ' sun' : (d === 5 ? ' wknd' : '')) + (d === todayD ? ' todaycol' : '');
     div.style.gridColumn = 3 + i; div.style.gridRow = 1;
     div.innerHTML = '<div class="dn"></div><div class="dd"></div>';
     div.firstChild.textContent = DAY_NAMES[d];
@@ -449,7 +463,8 @@ function renderMonth() {
     div.style.gridColumn = 1 + d;
     div.style.gridRow = 2 + Math.floor(i / 7);
     const dt = document.createElement('div');
-    dt.className = 'mdate' + (d === 5 ? ' sat' : '') + (d === 6 ? ' sun' : '');
+    const isHol = d === 6 || (w && w.holidays && w.holidays[d]);
+    dt.className = 'mdate' + (isHol ? ' sun' : (d === 5 ? ' sat' : ''));
     dt.textContent = ymd.m !== m ? ymd.m + '.' + ymd.d : ymd.d;
     div.appendChild(dt);
     if (w) {
@@ -494,11 +509,11 @@ function renderMonth() {
         slots.appendChild(slot);
       });
       div.appendChild(slots);
-      /* 날짜 탭 → 그 날의 하루 보기 */
+      /* 날짜 탭 → 그 주의 주간 보기 */
       div.addEventListener('click', () => {
         state.weekIdx = state.weeks.indexOf(w);
         state.dayIdx = d;
-        state.view = 'day';
+        state.view = 'week';
         render();
       });
     }
