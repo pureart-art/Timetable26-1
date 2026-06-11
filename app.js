@@ -80,32 +80,14 @@ function isRedHex(hex) {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
   return r >= 180 && g <= 115 && b <= 115;
 }
-/* 브리프 권장 매핑 (그 외 색은 HSL 명도 0.915 규칙) */
-const BG_MAP = { '#FDCBB5': '#FCE4D6', '#FFC000': '#FFF1D6' };
+/* 시트 원색에 흰색 42%만 섞음 — 색감 유지 + 검정 글자 가독성 */
 function lightenBg(hex) {
   if (isWhite(hex)) return '#FFFFFF';
-  if (BG_MAP[hex]) return BG_MAP[hex];
-  let [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0, l = (max + min) / 2;
-  if (max !== min) {
-    const dd = max - min;
-    s = l > 0.5 ? dd / (2 - max - min) : dd / (max + min);
-    if (max === r) h = ((g - b) / dd + (g < b ? 6 : 0)) / 6;
-    else if (max === g) h = ((b - r) / dd + 2) / 6;
-    else h = ((r - g) / dd + 4) / 6;
-  }
-  l = Math.max(l, 0.915);
-  const hue = t => {
-    if (t < 0) t += 1; if (t > 1) t -= 1;
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
+  const f = i => {
+    const v = parseInt(hex.slice(i, i + 2), 16);
+    return Math.round(v + (255 - v) * 0.42).toString(16).padStart(2, '0').toUpperCase();
   };
-  const f = v => Math.round(v * 255).toString(16).padStart(2, '0').toUpperCase();
-  return s === 0 ? '#' + f(l) + f(l) + f(l) : '#' + f(hue(h + 1 / 3)) + f(hue(h)) + f(hue(h - 1 / 3));
+  return '#' + f(1) + f(3) + f(5);
 }
 
 /* ===== 파서 ===== */

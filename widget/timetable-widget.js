@@ -1,7 +1,8 @@
-// TIMETABLE_WIDGET v6 — 의학과 2학년 시간표 Scriptable 위젯 본체
+// TIMETABLE_WIDGET v7 — 의학과 2학년 시간표 Scriptable 위젯 본체
 // 로더가 이 파일을 받아 실행합니다. 직접 수정할 일은 없습니다.
 // 모든 크기에서 이번 주 주간 격자를 보여줍니다.
-// v6: 시험(제목 줄 빨강) 칸 강조 — 진한 배경 + 빨간 테두리.
+// v7: 이미지 맞춤모드 명시(8교시 잘림 수정), 초안자/검안자 줄 제거,
+//     교수명/과명 검정, 시트 버전(vNN) 코너 표시, 원색 보존 배경.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -14,7 +15,6 @@ const PERIODS = [
   { no: '점심', t1: '13:00' }, { no: '5', t1: '14:00' }, { no: '6', t1: '15:00' }, { no: '7', t1: '16:00' }, { no: '8', t1: '17:00' },
 ];
 const DAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
-const BG_MAP = { '#FDCBB5': '#FCE4D6', '#FFC000': '#FFF1D6' };
 
 /* ===== 유틸 ===== */
 function dateToSerial(y, m, d) { return Math.round(Date.UTC(y, m - 1, d) / 86400000) + 25569; }
@@ -41,30 +41,14 @@ function isRedHex(hex) {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
   return r >= 180 && g <= 115 && b <= 115;
 }
+/* 시트 원색에 흰색 42%만 섞음 — 색감 유지 + 검정 글자 가독성 */
 function lightenBg(hex) {
   if (isWhite(hex)) return '#FFFFFF';
-  if (BG_MAP[hex]) return BG_MAP[hex];
-  let [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0, l = (max + min) / 2;
-  if (max !== min) {
-    const dd = max - min;
-    s = l > 0.5 ? dd / (2 - max - min) : dd / (max + min);
-    if (max === r) h = ((g - b) / dd + (g < b ? 6 : 0)) / 6;
-    else if (max === g) h = ((b - r) / dd + 2) / 6;
-    else h = ((r - g) / dd + 4) / 6;
-  }
-  l = Math.max(l, 0.915);
-  const hue = t => {
-    if (t < 0) t += 1; if (t > 1) t -= 1;
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
+  const f = i => {
+    const v = parseInt(hex.slice(i, i + 2), 16);
+    return Math.round(v + (255 - v) * 0.42).toString(16).padStart(2, '0').toUpperCase();
   };
-  const f = v => Math.round(v * 255).toString(16).padStart(2, '0').toUpperCase();
-  return s === 0 ? '#' + f(l) + f(l) + f(l) : '#' + f(hue(h + 1 / 3)) + f(hue(h)) + f(hue(h - 1 / 3));
+  return '#' + f(1) + f(3) + f(5);
 }
 function splitLines(text, runs, defaultColor) {
   const out = [];
@@ -115,11 +99,14 @@ async function apiGetWithFallback(params) {
 }
 function isDateSerial(n) { return typeof n === 'number' && n > 20000 && n < 80000; }
 
-/* 1단계: C열(월요일 날짜)만 받아 주 헤더 행 위치들 찾기 */
+/* 1단계: C열(월요일 날짜)만 받아 주 헤더 행 위치들 찾기 (+파일명 버전) */
 async function findCurrentWeekRow() {
   const params = 'ranges=' + encodeURIComponent(TAB + '!C1:C1000') +
-    '&includeGridData=true&fields=' + encodeURIComponent('sheets.data.rowData.values(effectiveValue.numberValue)');
+    '&includeGridData=true&fields=' + encodeURIComponent('properties.title,sheets.data.rowData.values(effectiveValue.numberValue)');
   const json = await apiGetWithFallback(params);
+  const title = (json.properties && json.properties.title) || '';
+  const vm = title.match(/v\s?\d+/i);
+  const ver = vm ? vm[0].replace(/\s/, '') : '';
   const rowData = (json.sheets[0].data && json.sheets[0].data[0] && json.sheets[0].data[0].rowData) || [];
   const headers = [];   // {row(0-based), monday}
   for (let r = 0; r < rowData.length; r++) {
@@ -139,7 +126,7 @@ async function findCurrentWeekRow() {
   let pick = headers[0];
   for (const h of headers) if (ts >= h.monday) pick = h;          // 오늘 이전 시작 중 가장 늦은 주
   if (ts >= pick.monday + 7) pick = headers[headers.length - 1];  // 학기 끝나면 마지막 주
-  return pick;
+  return { row: pick.row, monday: pick.monday, ver };
 }
 
 /* 2단계: 이번 주 블록 10행만 서식 포함으로 */
@@ -212,6 +199,7 @@ async function loadWeek() {
   try {
     const hdr = await findCurrentWeekRow();
     const week = await loadWeekBlock(hdr.row, hdr.monday);
+    week.ver = hdr.ver;
     fm.writeString(cachePath, JSON.stringify(week));
     return { week, fromCache: false };
   } catch (e) {
@@ -266,12 +254,18 @@ function buildWeekWidget(week, fromCache) {
   }
   ctx.setFillColor(new Color('#F1EFE8'));
   ctx.fillRect(new Rect(0, TOP, timeW, HDR + 9 * rowH));
-  if (week.label) {
-    /* 코너 칸에 주차 라벨 (예: 11주) */
+  /* 코너 칸: 주차 라벨 + 시트 버전 (예: 11주 / v34) */
+  {
+    const f1 = big ? 9 : 7, f2 = big ? 7 : 6;
     ctx.setTextAlignedCenter();
-    ctx.setFont(Font.boldSystemFont(Math.max(6, fHdr - 2)));
+    ctx.setFont(Font.boldSystemFont(f1));
     ctx.setTextColor(new Color('#5f5e5a'));
-    ctx.drawTextInRect(week.label + (fromCache ? '·오프라인' : ''), new Rect(0, TOP + (HDR - fHdr) / 2, timeW, fHdr + 3));
+    ctx.drawTextInRect((week.label || '') + (fromCache ? '·오프' : ''), new Rect(0, TOP + 2, timeW, f1 + 3));
+    if (week.ver) {
+      ctx.setFont(Font.boldSystemFont(f2));
+      ctx.setTextColor(new Color('#8a897f'));
+      ctx.drawTextInRect(week.ver, new Rect(0, TOP + 3 + f1 + 2, timeW, f2 + 3));
+    }
   }
   for (let p = 0; p < 9; p++) {
     ctx.setTextAlignedCenter();
@@ -307,16 +301,18 @@ function buildWeekWidget(week, fromCache) {
     if (cm.isExam) strokeRectPx(x + 1, y + 1, ww - 2, hh - 2, new Color('#FF3B30'), 2);
     if (!cm.isEmpty) {
       const l1 = cm.lines[0];
-      const showSub = big && cm.lines.length > 1 && hh > 42;
+      /* 초안자/검안자류(`라벨: A/B`) 줄은 위젯에서 제외 — 교수명/과명만 */
+      const subLines = cm.lines.slice(1).filter(l => !(l.text.includes(':') && l.text.includes('/')));
+      const showSub = big && subLines.length > 0 && hh > 42;
       ctx.setTextAlignedCenter();
       ctx.setFont(Font.boldSystemFont(cm.isExam ? fTitle + 1 : fTitle));
       ctx.setTextColor(new Color(l1.color && l1.color !== '#000000' ? l1.color : '#000000'));
       const titleH = Math.max(fTitle + 2, showSub ? hh * 0.55 : hh - 4);
       ctx.drawTextInRect(l1.text, new Rect(x + 2, y + (showSub ? 3 : Math.max(2, (hh - titleH) / 2)), ww - 4, titleH));
       if (showSub) {
-        const sub = cm.lines.slice(1).map(s => s.text).join(' ');
+        const sub = subLines.map(s => s.text).join(' ');
         ctx.setFont(Font.boldSystemFont(Math.max(7, fTitle - 2)));
-        ctx.setTextColor(new Color(cm.lines[cm.lines.length - 1].color || '#73726c'));
+        ctx.setTextColor(new Color(isRedHex(subLines[0].color) ? '#FF0000' : '#000000'));
         ctx.drawTextInRect(sub, new Rect(x + 2, y + hh * 0.58, ww - 4, hh * 0.38));
       }
     }
@@ -328,6 +324,8 @@ function buildWeekWidget(week, fromCache) {
 
   /* contain 배치: 기기마다 위젯 실제 크기가 달라도 잘리지 않음 */
   const wi = w.addImage(ctx.getImage());
+  wi.resizable = true;
+  wi.applyFittingContentMode();   /* 전체가 보이도록 축소(잘림 방지) */
   wi.centerAlignImage();
   return w;
 }
