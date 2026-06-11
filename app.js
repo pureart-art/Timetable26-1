@@ -298,6 +298,14 @@ function render() {
   if (state.view === 'month') renderMonth(); else renderSheet(state.view);
 }
 
+/* 줄 분류: 괄호줄 = 교수/과명(l2), `라벨: A/B` = 초안자/검안자(l3), 나머지 = 과목명(l1)
+   — 한 수업에 주제가 여러 줄일 수 있어 위치가 아닌 패턴으로 판정 */
+function lineClass(text) {
+  if (text.startsWith('(') && text.endsWith(')')) return 'l2';
+  if (text.includes(':') && text.includes('/')) return 'l3';
+  return 'l1';
+}
+
 /* ===== 하루/주간 (엑셀 격자) ===== */
 function makeCellDiv(cellModel, gridCol, gridRow, colSpan, rowSpan, extraCls) {
   const div = document.createElement('div');
@@ -306,9 +314,9 @@ function makeCellDiv(cellModel, gridCol, gridRow, colSpan, rowSpan, extraCls) {
   div.style.gridRow = gridRow + (rowSpan > 1 ? ' / span ' + rowSpan : '');
   if (cellModel) {
     if (!cellModel.isExam && cellModel.bg && cellModel.bg !== '#FFFFFF') div.style.background = cellModel.bg;
-    cellModel.lines.forEach((ln, i) => {
+    cellModel.lines.forEach(ln => {
       const el = document.createElement('div');
-      el.className = i === 0 ? 'l1' : (i >= 2 && i === cellModel.lines.length - 1 ? 'l3' : 'l2');
+      el.className = lineClass(ln.text);
       el.textContent = ln.text;
       el.style.color = ln.color || '#000000';
       div.appendChild(el);
@@ -535,9 +543,9 @@ function showPop(cm) {
   t.textContent = (pStart.no === '점심' ? '점심' : pStart.no + '교시' + (cm.rowSpan > 1 ? '–' + pEnd.no + '교시' : '')) +
     ' · ' + pStart.time.slice(0, 5) + '–' + pEnd.time.slice(6);
   body.appendChild(t);
-  cm.lines.forEach((ln, i) => {
+  cm.lines.forEach(ln => {
     const el = document.createElement('div');
-    el.className = i === 0 ? 'l1' : (i >= 2 && i === cm.lines.length - 1 ? 'l3' : 'l2');
+    el.className = lineClass(ln.text);
     el.textContent = ln.text;
     el.style.color = ln.color || '#000000';
     body.appendChild(el);

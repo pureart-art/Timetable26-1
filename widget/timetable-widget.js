@@ -1,8 +1,8 @@
-// TIMETABLE_WIDGET v7 — 의학과 2학년 시간표 Scriptable 위젯 본체
+// TIMETABLE_WIDGET v8 — 의학과 2학년 시간표 Scriptable 위젯 본체
 // 로더가 이 파일을 받아 실행합니다. 직접 수정할 일은 없습니다.
 // 모든 크기에서 이번 주 주간 격자를 보여줍니다.
-// v7: 이미지 맞춤모드 명시(8교시 잘림 수정), 초안자/검안자 줄 제거,
-//     교수명/과명 검정, 시트 버전(vNN) 코너 표시, 원색 보존 배경.
+// v8: 줄 분류를 패턴 기반으로(괄호줄=교수/과명, 그 외=과목명 — 여러 주제 줄 지원),
+//     모든 크기에서 가장자리 여백(PAD) 보장.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -228,43 +228,44 @@ function buildWeekWidget(week, fromCache) {
   ctx.fillRect(new Rect(0, 0, W, H));
 
   const big = H >= 300;
-  const TOP = 0;                        /* 제목 줄 없음 — 격자가 전체 공간 사용 */
-  const HDR = big ? 24 : 17;
+  const PAD = 6;                        /* 모든 크기 공통 가장자리 여백 */
+  const innerW = W - PAD * 2, innerH = H - PAD * 2;
+  const HDR = big ? 24 : 18;
   const timeW = W >= 600 ? 56 : (W >= 300 ? 26 : 20);
-  const dayW = (W - timeW) / 7;
-  const rowH = (H - TOP - HDR) / 9;
+  const dayW = (innerW - timeW) / 7;
+  const rowH = (innerH - HDR) / 9;
   const fTitle = Math.max(6, Math.min(11, Math.floor(rowH * 0.36)));
   const fHdr = Math.max(7, Math.min(12, Math.floor(HDR * 0.46)));
   const line = new Color('#CFCCC4');
 
-  const gx = c => timeW + c * dayW;
-  const gy = p => TOP + HDR + p * rowH;
+  const gx = c => PAD + timeW + c * dayW;
+  const gy = p => PAD + HDR + p * rowH;
   const todayD = (ts >= week.monday && ts < week.monday + 7) ? ts - week.monday : -1;
 
   for (let d = 0; d < 7; d++) {
     const isHol = d === 6 || (week.holidays && week.holidays[d]);
     const bg = isHol ? '#F7D2D2' : (d === 5 ? '#E7EEF6' : '#F1EFE8');
     ctx.setFillColor(new Color(bg));
-    ctx.fillRect(new Rect(gx(d), TOP, dayW, HDR));
+    ctx.fillRect(new Rect(gx(d), PAD, dayW, HDR));
     const ymd = serialToYMD(week.monday + d);
     ctx.setTextAlignedCenter();
     ctx.setFont(Font.boldSystemFont(fHdr));
     ctx.setTextColor(new Color('#3a3a37'));
-    ctx.drawTextInRect(DAY_NAMES[d] + (dayW >= 38 ? ' ' + ymd.m + '.' + ymd.d : ''), new Rect(gx(d), TOP + (HDR - fHdr) / 2 - 1, dayW, fHdr + 4));
+    ctx.drawTextInRect(DAY_NAMES[d] + (dayW >= 38 ? ' ' + ymd.m + '.' + ymd.d : ''), new Rect(gx(d), PAD + (HDR - fHdr) / 2 - 1, dayW, fHdr + 4));
   }
   ctx.setFillColor(new Color('#F1EFE8'));
-  ctx.fillRect(new Rect(0, TOP, timeW, HDR + 9 * rowH));
+  ctx.fillRect(new Rect(PAD, PAD, timeW, HDR + 9 * rowH));
   /* 코너 칸: 주차 라벨 + 시트 버전 (예: 11주 / v34) */
   {
     const f1 = big ? 9 : 7, f2 = big ? 7 : 6;
     ctx.setTextAlignedCenter();
     ctx.setFont(Font.boldSystemFont(f1));
     ctx.setTextColor(new Color('#5f5e5a'));
-    ctx.drawTextInRect((week.label || '') + (fromCache ? '·오프' : ''), new Rect(0, TOP + 2, timeW, f1 + 3));
+    ctx.drawTextInRect((week.label || '') + (fromCache ? '·오프' : ''), new Rect(PAD, PAD + 2, timeW, f1 + 3));
     if (week.ver) {
       ctx.setFont(Font.boldSystemFont(f2));
       ctx.setTextColor(new Color('#8a897f'));
-      ctx.drawTextInRect(week.ver, new Rect(0, TOP + 3 + f1 + 2, timeW, f2 + 3));
+      ctx.drawTextInRect(week.ver, new Rect(PAD, PAD + 3 + f1 + 2, timeW, f2 + 3));
     }
   }
   for (let p = 0; p < 9; p++) {
@@ -272,12 +273,12 @@ function buildWeekWidget(week, fromCache) {
     ctx.setFont(Font.boldSystemFont(Math.max(6, Math.min(10, Math.floor(rowH * 0.32)))));
     ctx.setTextColor(new Color('#5f5e5a'));
     if (timeW >= 40) {
-      ctx.drawTextInRect(PERIODS[p].no, new Rect(0, gy(p) + rowH / 2 - 12, timeW, 12));
+      ctx.drawTextInRect(PERIODS[p].no, new Rect(PAD, gy(p) + rowH / 2 - 12, timeW, 12));
       ctx.setFont(Font.systemFont(8));
       ctx.setTextColor(new Color('#8a897f'));
-      ctx.drawTextInRect(PERIODS[p].t1, new Rect(0, gy(p) + rowH / 2 + 1, timeW, 10));
+      ctx.drawTextInRect(PERIODS[p].t1, new Rect(PAD, gy(p) + rowH / 2 + 1, timeW, 10));
     } else {
-      ctx.drawTextInRect(PERIODS[p].no === '점심' ? '점' : PERIODS[p].no, new Rect(0, gy(p) + rowH / 2 - 5, timeW, 11));
+      ctx.drawTextInRect(PERIODS[p].no === '점심' ? '점' : PERIODS[p].no, new Rect(PAD, gy(p) + rowH / 2 - 5, timeW, 11));
     }
   }
 
@@ -300,26 +301,30 @@ function buildWeekWidget(week, fromCache) {
     strokeRectPx(x, y, ww, hh);
     if (cm.isExam) strokeRectPx(x + 1, y + 1, ww - 2, hh - 2, new Color('#FF3B30'), 2);
     if (!cm.isEmpty) {
-      const l1 = cm.lines[0];
-      /* 초안자/검안자류(`라벨: A/B`) 줄은 위젯에서 제외 — 교수명/과명만 */
-      const subLines = cm.lines.slice(1).filter(l => !(l.text.includes(':') && l.text.includes('/')));
-      const showSub = big && subLines.length > 0 && hh > 42;
+      /* 패턴 분류: 괄호줄 = 교수/과명, `라벨: A/B`(초안자/검안자·그룹) 줄 = 제외, 나머지 = 과목명(여러 줄 가능) */
+      const isProf = l => l.text.startsWith('(') && l.text.endsWith(')') && !(l.text.includes(':') && l.text.includes('/'));
+      const isStaff = l => l.text.includes(':') && l.text.includes('/');
+      const titleLines = cm.lines.filter(l => !isProf(l) && !isStaff(l));
+      const profLines = cm.lines.filter(isProf);
+      const tLine = titleLines[0] || cm.lines[0];
+      const titleText = (titleLines.length ? titleLines : [cm.lines[0]]).map(l => l.text).join('\n');
+      const showSub = big && profLines.length > 0 && hh > 42;
       ctx.setTextAlignedCenter();
       ctx.setFont(Font.boldSystemFont(cm.isExam ? fTitle + 1 : fTitle));
-      ctx.setTextColor(new Color(l1.color && l1.color !== '#000000' ? l1.color : '#000000'));
+      ctx.setTextColor(new Color(tLine.color && tLine.color !== '#000000' ? tLine.color : '#000000'));
       const titleH = Math.max(fTitle + 2, showSub ? hh * 0.55 : hh - 4);
-      ctx.drawTextInRect(l1.text, new Rect(x + 2, y + (showSub ? 3 : Math.max(2, (hh - titleH) / 2)), ww - 4, titleH));
+      ctx.drawTextInRect(titleText, new Rect(x + 2, y + (showSub ? 3 : Math.max(2, (hh - titleH) / 2)), ww - 4, titleH));
       if (showSub) {
-        const sub = subLines.map(s => s.text).join(' ');
+        const sub = profLines.map(s => s.text).join(' ');
         ctx.setFont(Font.boldSystemFont(Math.max(7, fTitle - 2)));
-        ctx.setTextColor(new Color(isRedHex(subLines[0].color) ? '#FF0000' : '#000000'));
+        ctx.setTextColor(new Color(isRedHex(profLines[0].color) ? '#FF0000' : '#000000'));
         ctx.drawTextInRect(sub, new Rect(x + 2, y + hh * 0.58, ww - 4, hh * 0.38));
       }
     }
   }
-  strokeRectPx(0, TOP, timeW + 7 * dayW, HDR + 9 * rowH);
+  strokeRectPx(PAD, PAD, timeW + 7 * dayW, HDR + 9 * rowH);
   if (todayD >= 0) {
-    strokeRectPx(gx(todayD) + 1, TOP + 1, dayW - 2, HDR + 9 * rowH - 2, new Color('#2E75B6'), 2);
+    strokeRectPx(gx(todayD) + 1, PAD + 1, dayW - 2, HDR + 9 * rowH - 2, new Color('#2E75B6'), 2);
   }
 
   /* contain 배치: 기기마다 위젯 실제 크기가 달라도 잘리지 않음 */
