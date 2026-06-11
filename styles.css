@@ -68,7 +68,11 @@ body{margin:0;padding:22px 18px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 .mday.outm{background:#F7F6F1}
 .mday.outm .mdate{color:#c5c2ba}
 .mday.todaym{box-shadow:inset 0 0 0 2px #5B9BD5}
+.mslots{display:flex;flex-direction:column;flex:1;min-height:0;gap:2px;margin-top:1px}
+.mslot{flex:1 1 0;min-height:15px;display:flex;flex-direction:column;gap:1px;justify-content:flex-start;min-width:0}
+.mslot.afterlunch{border-top:1px dotted #DDD9CF;padding-top:3px}
 .mchip{font-size:10px;font-weight:600;line-height:1.25;color:#000;border-radius:3px;padding:1px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0.5px solid rgba(0,0,0,.07)}
+.mchip.cont{flex:0 0 5px;min-height:5px;padding:0;opacity:.55}
 .mmore{font-size:10px;color:#8a897f;padding-left:2px}
 .viewtoggle.off{display:none!important}
 @media (max-width:719px){

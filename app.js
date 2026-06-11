@@ -354,7 +354,6 @@ function renderMonth() {
     grid.appendChild(h);
   });
 
-  const MAX_CHIPS = 4;
   for (let i = 0; i < rows * 7; i++) {
     const s = start + i;
     const ymd = serialToYMD(s);
@@ -369,23 +368,46 @@ function renderMonth() {
     dt.textContent = ymd.m !== m ? ymd.m + '.' + ymd.d : ymd.d;
     div.appendChild(dt);
     if (w) {
+      /* 시간대 4슬롯: 9–11(교시1·2) / 11–13(3·4) / 14–16(5·6) / 16–18(7·8), 점심 제외 */
+      const SLOT_PERIODS = [[0, 1], [2, 3], [5, 6], [7, 8]];
       const entries = w.cells
         .filter(c => !c.isEmpty && c.d <= d && d < c.d + c.colSpan)
+        .filter(c => !(c.p === 4 && c.p + c.rowSpan <= 5)) /* 점심 전용 칸 제외 */
         .sort((a, b) => a.p - b.p);
-      entries.slice(0, MAX_CHIPS).forEach(cm => {
-        const chip = document.createElement('div');
-        chip.className = 'mchip';
-        chip.style.background = cm.bg || '#FFFFFF';
-        chip.textContent = cm.lines[0].text;
-        if (cm.lines[0].color && cm.lines[0].color !== '#000000') chip.style.color = cm.lines[0].color;
-        div.appendChild(chip);
-      });
-      if (entries.length > MAX_CHIPS) {
-        const more = document.createElement('div');
-        more.className = 'mmore';
-        more.textContent = '+' + (entries.length - MAX_CHIPS) + '개';
-        div.appendChild(more);
+      const slotEntries = [[], [], [], []];
+      for (const cm of entries) {
+        let first = true;
+        SLOT_PERIODS.forEach((ps, k) => {
+          if (ps.some(p => p >= cm.p && p < cm.p + cm.rowSpan)) {
+            slotEntries[k].push({ cm, first });
+            first = false;
+          }
+        });
       }
+      const slots = document.createElement('div');
+      slots.className = 'mslots';
+      slotEntries.forEach((list, k) => {
+        const slot = document.createElement('div');
+        slot.className = 'mslot' + (k === 2 ? ' afterlunch' : '');
+        list.slice(0, 2).forEach(({ cm, first }) => {
+          const chip = document.createElement('div');
+          chip.className = 'mchip' + (first ? '' : ' cont');
+          chip.style.background = cm.bg || '#FFFFFF';
+          if (first) {
+            chip.textContent = cm.lines[0].text;
+            if (cm.lines[0].color && cm.lines[0].color !== '#000000') chip.style.color = cm.lines[0].color;
+          }
+          slot.appendChild(chip);
+        });
+        if (list.length > 2) {
+          const more = document.createElement('div');
+          more.className = 'mmore';
+          more.textContent = '+' + (list.length - 2);
+          slot.appendChild(more);
+        }
+        slots.appendChild(slot);
+      });
+      div.appendChild(slots);
       /* 날짜 탭 → 그 주(좁은 화면이면 그 요일)로 이동 */
       div.addEventListener('click', () => {
         state.weekIdx = state.weeks.indexOf(w);
