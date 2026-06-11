@@ -6,8 +6,8 @@
 
 /* ===== CONFIG — API_KEY는 GY가 직접 입력 ===== */
 const CONFIG = {
-  SHEET_ID: '1ApcQRzpRt5J3qHysCEq7uzCekYp_RusG',
-  API_KEY: '',            // ← 여기에 Google Cloud API 키 입력
+  SHEET_ID: '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4',
+  API_KEY: 'AIzaSyCGjLnlXFA_Bi2mCKlUHyBUMxbE5Dlbj0k',
   TAB: '시간표',
   POLL_MS: 45000,
 };
@@ -44,6 +44,8 @@ const state = {
   source: '',           // 'live' | 'cache' | 'snapshot'
   lastFetched: null,
   forceWeekWide: false, // 좁은 화면에서 주간 보기 토글
+  view: 'sheet',        // 'sheet'(주간/요일) | 'month'(월간)
+  monthY: 0, monthM: 0, // 월간 보기 기준 연·월
   dataSig: '',
 };
 
@@ -314,11 +316,97 @@ function makeCellDiv(cellModel, gridCol, gridRow, colSpan, rowSpan, extraCls) {
   return div;
 }
 
+/* 뷰 디스패처 */
+function render() {
+  $('btnView').classList.toggle('off', state.view === 'month');
+  $('btnMonth').textContent = state.view === 'month' ? '주간' : '월간';
+  if (state.view === 'month') renderMonth(); else renderWeek();
+}
+
+/* ===== 월간 보기 ===== */
+function weekOfSerial(s) {
+  return state.weeks.find(w => s >= w.monday && s < w.monday + 7) || null;
+}
+function renderMonth() {
+  const grid = $('grid');
+  grid.innerHTML = '';
+  grid.className = 'gridc monthview';
+  $('daytabs').hidden = true;
+
+  const y = state.monthY, m = state.monthM;
+  $('weekLabel').textContent = y + '년 ' + m + '월';
+  $('weekRange').textContent = '';
+
+  const first = dateToSerial(y, m, 1);
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const dowMon0 = (new Date((first - 25569) * 86400000).getUTCDay() + 6) % 7; // 월=0
+  const start = first - dowMon0;
+  const rows = Math.ceil((dowMon0 + daysInMonth) / 7);
+  grid.style.gridTemplateRows = 'auto repeat(' + rows + ', minmax(var(--mrowh), auto))';
+  const todaySerial = kstNow().serial;
+
+  DAY_NAMES.forEach((nm, d) => {
+    const h = document.createElement('div');
+    h.className = 'cell hdr' + (d === 5 ? ' wknd' : '') + (d === 6 ? ' sun' : '');
+    h.style.gridColumn = 1 + d; h.style.gridRow = 1;
+    h.innerHTML = '<div class="dn"></div>';
+    h.firstChild.textContent = nm;
+    grid.appendChild(h);
+  });
+
+  const MAX_CHIPS = 4;
+  for (let i = 0; i < rows * 7; i++) {
+    const s = start + i;
+    const ymd = serialToYMD(s);
+    const d = i % 7;
+    const w = weekOfSerial(s);
+    const div = document.createElement('div');
+    div.className = 'cell mday' + (ymd.m !== m ? ' outm' : '') + (s === todaySerial ? ' todaym' : '');
+    div.style.gridColumn = 1 + d;
+    div.style.gridRow = 2 + Math.floor(i / 7);
+    const dt = document.createElement('div');
+    dt.className = 'mdate' + (d === 5 ? ' sat' : '') + (d === 6 ? ' sun' : '');
+    dt.textContent = ymd.m !== m ? ymd.m + '.' + ymd.d : ymd.d;
+    div.appendChild(dt);
+    if (w) {
+      const entries = w.cells
+        .filter(c => !c.isEmpty && c.d <= d && d < c.d + c.colSpan)
+        .sort((a, b) => a.p - b.p);
+      entries.slice(0, MAX_CHIPS).forEach(cm => {
+        const chip = document.createElement('div');
+        chip.className = 'mchip';
+        chip.style.background = cm.bg || '#FFFFFF';
+        chip.textContent = cm.lines[0].text;
+        if (cm.lines[0].color && cm.lines[0].color !== '#000000') chip.style.color = cm.lines[0].color;
+        div.appendChild(chip);
+      });
+      if (entries.length > MAX_CHIPS) {
+        const more = document.createElement('div');
+        more.className = 'mmore';
+        more.textContent = '+' + (entries.length - MAX_CHIPS) + '개';
+        div.appendChild(more);
+      }
+      /* 날짜 탭 → 그 주(좁은 화면이면 그 요일)로 이동 */
+      div.addEventListener('click', () => {
+        state.weekIdx = state.weeks.indexOf(w);
+        state.dayIdx = d;
+        state.view = 'sheet';
+        render();
+      });
+    }
+    grid.appendChild(div);
+  }
+  const monthWeeks = state.weeks.filter(w2 => w2.monday < first + daysInMonth && w2.monday + 7 > first);
+  renderLegend({ cells: monthWeeks.flatMap(w2 => w2.cells) });
+  renderMeta();
+}
+
 function renderWeek() {
   const w = state.weeks[state.weekIdx];
   if (!w) return;
   const grid = $('grid');
   grid.innerHTML = '';
+  grid.style.gridTemplateRows = '';
   const narrow = isNarrow();
   grid.className = 'gridc ' + (narrow ? 'dayview' : 'weekwide');
 
@@ -401,7 +489,7 @@ function renderDayTabs(narrow, w, todayD) {
     b.innerHTML = '<span></span><span class="dtd"></span>';
     b.firstChild.textContent = DAY_NAMES[d] + (d === todayD ? '·오늘' : '');
     b.lastChild.textContent = ymd.m + '.' + ymd.d;
-    b.addEventListener('click', () => { state.dayIdx = d; renderWeek(); });
+    b.addEventListener('click', () => { state.dayIdx = d; render(); });
     tabs.appendChild(b);
   }
 }
@@ -414,8 +502,9 @@ function renderLegend(w) {
   }
   let html = '<span class="tk">칸 배경(과목 블록):</span> ';
   for (const [hex, name] of seen) {
-    html += '<span><span class="sw" style="background:' + hex + '"></span>' + (name || '과목 블록') + '</span>&nbsp;&nbsp;';
+    html += '<span><span class="sw" style="background:' + hex + '"></span>' + (name ? name + '&nbsp;&nbsp;' : '') + '</span>';
   }
+  html += '&nbsp;';
   html += '<span><span class="sw" style="background:#FFFFFF"></span>점심·기타(채우기 없음)</span><br>' +
     '<span class="tk">글자색(시트 그대로):</span> <span style="color:#000">■ 검정 = 과목·교수</span>&nbsp;&nbsp;' +
     '<span style="color:#2E75B6">■ 파랑 = 초안자/검안자 줄·점심 그룹</span>&nbsp;&nbsp;' +
@@ -478,7 +567,7 @@ async function refresh(isFirst) {
       const t = kstNow().serial - weeks[state.weekIdx].monday;
       state.dayIdx = (t >= 0 && t < 7) ? t : 0;
     }
-    if (isFirst || changed) renderWeek(); else renderMeta();
+    if (isFirst || changed) render(); else renderMeta();
   } catch (e) {
     console.error(e);
     if (isFirst) {
@@ -488,22 +577,45 @@ async function refresh(isFirst) {
 }
 
 function bindUI() {
-  $('btnPrev').addEventListener('click', () => { if (state.weekIdx > 0) { state.weekIdx--; renderWeek(); } });
-  $('btnNext').addEventListener('click', () => { if (state.weekIdx < state.weeks.length - 1) { state.weekIdx++; renderWeek(); } });
+  $('btnPrev').addEventListener('click', () => {
+    if (state.view === 'month') {
+      state.monthM--; if (state.monthM < 1) { state.monthM = 12; state.monthY--; }
+      render();
+    } else if (state.weekIdx > 0) { state.weekIdx--; render(); }
+  });
+  $('btnNext').addEventListener('click', () => {
+    if (state.view === 'month') {
+      state.monthM++; if (state.monthM > 12) { state.monthM = 1; state.monthY++; }
+      render();
+    } else if (state.weekIdx < state.weeks.length - 1) { state.weekIdx++; render(); }
+  });
   $('btnToday').addEventListener('click', () => {
+    const n = kstNow();
+    if (state.view === 'month') { state.monthY = n.y; state.monthM = n.m; }
     const tw = weekOfToday();
     if (tw >= 0) {
       state.weekIdx = tw;
-      const t = kstNow().serial - state.weeks[tw].monday;
+      const t = n.serial - state.weeks[tw].monday;
       state.dayIdx = (t >= 0 && t < 7) ? t : 0;
-      renderWeek();
     }
+    render();
+  });
+  $('btnMonth').addEventListener('click', () => {
+    if (state.view === 'month') { state.view = 'sheet'; }
+    else {
+      state.view = 'month';
+      /* 보고 있던 주(없으면 오늘)의 달로 진입 */
+      const w = state.weeks[state.weekIdx];
+      const base = w ? serialToYMD(w.monday + 3) : kstNow();
+      state.monthY = base.y; state.monthM = base.m;
+    }
+    render();
   });
   $('btnView').addEventListener('click', () => {
     state.forceWeekWide = !state.forceWeekWide;
     $('btnView').textContent = state.forceWeekWide ? '요일' : '주간';
     document.querySelector('.page').classList.toggle('gridwrap-scroll', state.forceWeekWide);
-    renderWeek();
+    render();
   });
   $('popClose').addEventListener('click', () => { $('sheetpop').hidden = true; });
   $('sheetpop').addEventListener('click', e => { if (e.target === $('sheetpop')) $('sheetpop').hidden = true; });
@@ -512,7 +624,7 @@ function bindUI() {
   let tx = null;
   $('grid').addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
   $('grid').addEventListener('touchend', e => {
-    if (tx === null || !isNarrow()) return;
+    if (tx === null || !isNarrow() || state.view === 'month') return;
     const dx = e.changedTouches[0].clientX - tx;
     if (Math.abs(dx) > 48) {
       if (dx < 0 && state.dayIdx < 6) state.dayIdx++;
@@ -525,7 +637,7 @@ function bindUI() {
   let resizeTimer;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(renderWeek, 150);
+    resizeTimer = setTimeout(render, 150);
   });
 }
 
@@ -534,7 +646,7 @@ async function main() {
   await refresh(true);
   setInterval(() => { if (!document.hidden && CONFIG.API_KEY) refresh(false); }, CONFIG.POLL_MS);
   /* 현재 교시 강조 갱신 */
-  setInterval(() => { if (!document.hidden) renderWeek(); }, 60000);
+  setInterval(() => { if (!document.hidden) render(); }, 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && CONFIG.API_KEY) refresh(false); });
   /* localhost(개발)에서는 SW 미등록 — 캐시가 코드 수정을 가리는 것 방지 */
   if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
