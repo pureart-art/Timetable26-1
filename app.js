@@ -13,7 +13,7 @@ const CONFIG = {
   POLL_MS: 45000,
 };
 
-const FIELDS = 'sheets.properties,sheets.merges,' +
+const FIELDS = 'properties.title,sheets.properties,sheets.merges,' +
   'sheets.data.rowData.values(formattedValue,effectiveValue,' +
   'effectiveFormat.backgroundColor,effectiveFormat.textFormat.foregroundColor,' +
   'effectiveFormat.textFormat.foregroundColorStyle,textFormatRuns)';
@@ -43,6 +43,7 @@ const state = {
   monthY: 0, monthM: 0,
   source: '',           // 'live' | 'cache' | 'snapshot'
   lastFetched: null,
+  ver: '',              // 시트 파일명에서 추출한 버전 (예: v34)
   dataSig: '',
 };
 
@@ -525,6 +526,9 @@ function renderMonth() {
 }
 
 function renderMeta() {
+  const ver = $('verBadge');
+  ver.textContent = state.ver;
+  ver.hidden = !state.ver;
   const badge = $('srcBadge');
   if (state.source === 'live') { badge.textContent = 'LIVE'; badge.className = 'badge live'; }
   else if (state.source === 'snapshot') { badge.textContent = '스냅샷'; badge.className = 'badge'; }
@@ -587,6 +591,9 @@ async function refresh(isFirst) {
     for (let i = 0; i < str.length; i++) { h = (h * 31 + str.charCodeAt(i)) | 0; }
     const sig = h + '|' + str.length;
     const weeks = parseGrid(json);
+    const title = (json.properties && json.properties.title) || '';
+    const vm = title.match(/v\s?\d+/i);
+    state.ver = vm ? vm[0].replace(/\s/, '') : '';
     const changed = sig !== state.dataSig;
     state.dataSig = sig;
     state.weeks = weeks;
