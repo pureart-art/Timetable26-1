@@ -1,29 +1,22 @@
-// TIMETABLE_WIDGET v2 — 의학과 2학년 시간표 Scriptable 위젯 본체
+// TIMETABLE_WIDGET v3 — 의학과 2학년 시간표 Scriptable 위젯 본체
 // 로더가 이 파일을 받아 실행합니다. 직접 수정할 일은 없습니다.
-// 모든 크기에서 이번 주 주간 격자를 보여줍니다 (크기에 맞춰 자동 축소).
+// 모든 크기에서 이번 주 주간 격자를 보여줍니다.
+// v3: 위젯 메모리 한도 대응 — 이번 주 10행만 받아오는 2단계 경량 로딩.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
 const API_KEY = 'AIzaSyCGjLnlXFA_Bi2mCKlUHyBUMxbE5Dlbj0k';   // 사이트용(리퍼러 제한) 키
-const WIDGET_KEY = '';                                        // 위젯 전용(제한 없는) 예비 키 — 필요 시 입력
+const WIDGET_KEY = '';                                        // 위젯 전용 예비 키 — 필요 시 입력
 const TAB = '시간표';
-const FIELDS = 'sheets.properties,sheets.merges,' +
-  'sheets.data.rowData.values(formattedValue,effectiveValue,' +
-  'effectiveFormat.backgroundColor,effectiveFormat.textFormat.foregroundColor,' +
-  'effectiveFormat.textFormat.foregroundColorStyle,textFormatRuns)';
 
 const PERIODS = [
-  { no: '1', t1: '09:00', t2: '09:50' }, { no: '2', t1: '10:00', t2: '10:50' },
-  { no: '3', t1: '11:00', t2: '11:50' }, { no: '4', t1: '12:00', t2: '12:50' },
-  { no: '점심', t1: '13:00', t2: '14:00' }, { no: '5', t1: '14:00', t2: '14:50' },
-  { no: '6', t1: '15:00', t2: '15:50' }, { no: '7', t1: '16:00', t2: '16:50' },
-  { no: '8', t1: '17:00', t2: '17:50' },
+  { no: '1', t1: '09:00' }, { no: '2', t1: '10:00' }, { no: '3', t1: '11:00' }, { no: '4', t1: '12:00' },
+  { no: '점심', t1: '13:00' }, { no: '5', t1: '14:00' }, { no: '6', t1: '15:00' }, { no: '7', t1: '16:00' }, { no: '8', t1: '17:00' },
 ];
 const DAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
-const FIRST_DAY_COL = 2, BLOCK_ROWS = 10;
 const BG_MAP = { '#FDCBB5': '#FCE4D6', '#FFC000': '#FFF1D6' };
 
-/* ===== 유틸 (앱 파서와 동일 로직) ===== */
+/* ===== 유틸 ===== */
 function dateToSerial(y, m, d) { return Math.round(Date.UTC(y, m - 1, d) / 86400000) + 25569; }
 function serialToYMD(s) {
   const dt = new Date((s - 25569) * 86400000);
@@ -95,122 +88,131 @@ function splitLines(text, runs, defaultColor) {
   }
   return out;
 }
-function getCell(rowData, r, c) {
-  const row = rowData[r];
-  return (row && row.values && row.values[c]) || null;
-}
-function cellNumber(cell) {
-  return cell && cell.effectiveValue && typeof cell.effectiveValue.numberValue === 'number'
-    ? cell.effectiveValue.numberValue : null;
-}
-function isDateSerial(n) { return n !== null && n > 20000 && n < 80000; }
 
-function parseGrid(api) {
-  const sheet = api.sheets && api.sheets[0];
-  const rowData = sheet.data[0].rowData;
+/* ===== 데이터: 2단계 경량 로딩 ===== */
+async function apiGet(params, key, withReferer) {
+  const url = 'https://sheets.googleapis.com/v4/spreadsheets/' + SHEET_ID + '?' + params + '&key=' + key;
+  const req = new Request(url);
+  req.timeoutInterval = 15;
+  if (withReferer) req.headers = { 'Referer': PWA_URL };
+  const json = await req.loadJSON();
+  if (!json || !json.sheets) {
+    throw new Error(json && json.error ? 'API ' + json.error.code + ': ' + json.error.message : '응답 형식 오류');
+  }
+  return json;
+}
+async function apiGetWithFallback(params) {
+  try { return await apiGet(params, API_KEY, true); }
+  catch (e1) {
+    if (WIDGET_KEY) { try { return await apiGet(params, WIDGET_KEY, false); } catch (e2) { throw e2; } }
+    throw e1;
+  }
+}
+function isDateSerial(n) { return typeof n === 'number' && n > 20000 && n < 80000; }
+
+/* 1단계: C열(월요일 날짜)만 받아 주 헤더 행 위치들 찾기 */
+async function findCurrentWeekRow() {
+  const params = 'ranges=' + encodeURIComponent(TAB + '!C1:C1000') +
+    '&includeGridData=true&fields=' + encodeURIComponent('sheets.data.rowData.values(effectiveValue.numberValue)');
+  const json = await apiGetWithFallback(params);
+  const rowData = (json.sheets[0].data && json.sheets[0].data[0] && json.sheets[0].data[0].rowData) || [];
+  const headers = [];   // {row(0-based), monday}
+  for (let r = 0; r < rowData.length; r++) {
+    const v = rowData[r] && rowData[r].values && rowData[r].values[0] &&
+      rowData[r].values[0].effectiveValue && rowData[r].values[0].effectiveValue.numberValue;
+    if (isDateSerial(v)) headers.push({ row: r, monday: Math.round(v) });
+  }
+  if (!headers.length) throw new Error('주 헤더를 찾지 못했어요');
+  /* 날짜 오타 보정: 기준선 = median(monday - 7*i) */
+  const bases = headers.map((h, i) => h.monday - 7 * i).sort((a, b) => a - b);
+  const base = bases[Math.floor(bases.length / 2)];
+  headers.forEach((h, i) => {
+    const ex = base + 7 * i;
+    if (Math.abs(h.monday - ex) > 1) h.monday = ex;
+  });
+  const ts = todaySerial();
+  let pick = headers[0];
+  for (const h of headers) if (ts >= h.monday) pick = h;          // 오늘 이전 시작 중 가장 늦은 주
+  if (ts >= pick.monday + 7) pick = headers[headers.length - 1];  // 학기 끝나면 마지막 주
+  return pick;
+}
+
+/* 2단계: 이번 주 블록 10행만 서식 포함으로 */
+const BLOCK_FIELDS = 'sheets.merges,sheets.data.startRow,' +
+  'sheets.data.rowData.values(formattedValue,effectiveFormat.backgroundColor,' +
+  'effectiveFormat.textFormat.foregroundColor,effectiveFormat.textFormat.foregroundColorStyle,textFormatRuns)';
+async function loadWeekBlock(headerRow, monday) {
+  const r1 = headerRow + 1, r2 = headerRow + 10;   // 1-based
+  const params = 'ranges=' + encodeURIComponent(TAB + '!A' + r1 + ':I' + r2) +
+    '&includeGridData=true&fields=' + encodeURIComponent(BLOCK_FIELDS);
+  const json = await apiGetWithFallback(params);
+  const sheet = json.sheets[0];
+  const data = sheet.data[0];
+  const startRow = data.startRow || 0;
+  const rowData = data.rowData || [];
   const merges = sheet.merges || [];
   const mergeAt = new Map();
   for (const m of merges)
     for (let r = m.startRowIndex; r < m.endRowIndex; r++)
       for (let c = m.startColumnIndex; c < m.endColumnIndex; c++)
         mergeAt.set(r + ',' + c, m);
-  const headers = [];
-  for (let r = 0; r < rowData.length; r++) {
-    let n = 0;
-    for (let c = FIRST_DAY_COL; c < FIRST_DAY_COL + 7; c++)
-      if (isDateSerial(cellNumber(getCell(rowData, r, c)))) n++;
-    if (n >= 3) headers.push(r);
-  }
-  const rawMon = headers.map(h => {
-    const n = cellNumber(getCell(rowData, h, FIRST_DAY_COL));
-    return isDateSerial(n) ? Math.round(n) : null;
-  });
-  const bases = rawMon.map((m, i) => (m === null ? null : m - 7 * i)).filter(v => v !== null).sort((a, b) => a - b);
-  const baseMedian = bases.length ? bases[Math.floor(bases.length / 2)] : dateToSerial(2026, 3, 30);
-  const mondays = rawMon.map((m, i) => {
-    const ex = baseMedian + 7 * i;
-    return (m === null || Math.abs(m - ex) > 1) ? ex : m;
-  });
-  return headers.map((h, wi) => {
-    const aCell = getCell(rowData, h, 0);
-    const label = (aCell && aCell.formattedValue || '').trim() || (wi + 1) + '주';
-    const cells = [];
-    const covered = new Set();
-    for (let p = 0; p < 9; p++) {
-      for (let d = 0; d < 7; d++) {
-        if (covered.has(p + ',' + d)) continue;
-        const r = h + 1 + p, c = FIRST_DAY_COL + d;
-        const m = mergeAt.get(r + ',' + c);
-        let rowSpan = 1, colSpan = 1;
-        if (m) {
-          const rEnd = Math.min(m.endRowIndex, h + BLOCK_ROWS);
-          const cEnd = Math.min(m.endColumnIndex, FIRST_DAY_COL + 7);
-          if (m.startRowIndex < r || m.startColumnIndex < c) {
-            if (m.startRowIndex >= h + 1 && m.startColumnIndex >= FIRST_DAY_COL) continue;
-          }
-          rowSpan = Math.max(1, rEnd - r);
-          colSpan = Math.max(1, cEnd - c);
-          for (let pp = p; pp < p + rowSpan; pp++)
-            for (let dd = d; dd < d + colSpan; dd++)
-              if (pp !== p || dd !== d) covered.add(pp + ',' + dd);
+  const cellAt = (lr, c) => (rowData[lr] && rowData[lr].values && rowData[lr].values[c]) || null;
+  const hdrA = cellAt(0, 0);
+  const label = (hdrA && hdrA.formattedValue || '').trim();
+  const cells = [];
+  const covered = new Set();
+  for (let p = 0; p < 9; p++) {
+    for (let d = 0; d < 7; d++) {
+      if (covered.has(p + ',' + d)) continue;
+      const gr = startRow + 1 + p, gc = 2 + d;   // 전역 좌표
+      const m = mergeAt.get(gr + ',' + gc);
+      let rowSpan = 1, colSpan = 1;
+      if (m) {
+        const rEnd = Math.min(m.endRowIndex, startRow + 10);
+        const cEnd = Math.min(m.endColumnIndex, 9);
+        if (m.startRowIndex < gr || m.startColumnIndex < gc) {
+          if (m.startRowIndex >= startRow + 1 && m.startColumnIndex >= 2) continue;
         }
-        const cell = getCell(rowData, r, c);
-        const fmt = (cell && cell.effectiveFormat) || {};
-        const bgRaw = colorToHex(fmt.backgroundColor);
-        const defColor = colorToHex(fgOf(fmt.textFormat)) || '#000000';
-        const text = (cell && cell.formattedValue) || '';
-        const lines = text ? splitLines(text, cell.textFormatRuns, defColor) : [];
-        cells.push({ p, d, rowSpan, colSpan, lines, bg: lightenBg(bgRaw), isEmpty: lines.length === 0 });
+        rowSpan = Math.max(1, rEnd - gr);
+        colSpan = Math.max(1, cEnd - gc);
+        for (let pp = p; pp < p + rowSpan; pp++)
+          for (let dd = d; dd < d + colSpan; dd++)
+            if (pp !== p || dd !== d) covered.add(pp + ',' + dd);
       }
+      const cell = cellAt(1 + p, gc);
+      const fmt = (cell && cell.effectiveFormat) || {};
+      const bgRaw = colorToHex(fmt.backgroundColor);
+      const defColor = colorToHex(fgOf(fmt.textFormat)) || '#000000';
+      const text = (cell && cell.formattedValue) || '';
+      const lines = text ? splitLines(text, cell.textFormatRuns, defColor) : [];
+      cells.push({ p, d, rowSpan, colSpan, lines, bg: lightenBg(bgRaw), isEmpty: lines.length === 0 });
     }
-    return { label, monday: mondays[wi], cells };
-  });
+  }
+  return { label, monday, cells };
 }
 
-/* ===== 데이터 (네트워크 → 실패 시 캐시) ===== */
-async function fetchApi(key, withReferer) {
-  const url = 'https://sheets.googleapis.com/v4/spreadsheets/' + SHEET_ID +
-    '?ranges=' + encodeURIComponent(TAB) + '&includeGridData=true&fields=' +
-    encodeURIComponent(FIELDS) + '&key=' + key;
-  const req = new Request(url);
-  req.timeoutInterval = 15;
-  if (withReferer) req.headers = { 'Referer': PWA_URL };
-  const api = await req.loadJSON();
-  if (!api || !api.sheets) throw new Error(api && api.error ? 'API ' + api.error.code + ': ' + api.error.message : 'bad response');
-  return api;
-}
-async function loadWeeks() {
+async function loadWeek() {
   const fm = FileManager.local();
-  const cachePath = fm.joinPath(fm.cacheDirectory(), 'timetable-data.json');
-  let api = null, fromCache = false, lastErr = null;
-  /* 1) 사이트용 키 + Referer → 2) 위젯 전용 키 → 3) 마지막 캐시 */
-  try { api = await fetchApi(API_KEY, true); }
-  catch (e1) {
-    lastErr = e1;
-    if (WIDGET_KEY) { try { api = await fetchApi(WIDGET_KEY, false); } catch (e2) { lastErr = e2; } }
+  const cachePath = fm.joinPath(fm.cacheDirectory(), 'timetable-week-v3.json');
+  try {
+    const hdr = await findCurrentWeekRow();
+    const week = await loadWeekBlock(hdr.row, hdr.monday);
+    fm.writeString(cachePath, JSON.stringify(week));
+    return { week, fromCache: false };
+  } catch (e) {
+    if (fm.fileExists(cachePath)) return { week: JSON.parse(fm.readString(cachePath)), fromCache: true };
+    throw e;
   }
-  if (api) {
-    fm.writeString(cachePath, JSON.stringify(api));
-  } else if (fm.fileExists(cachePath)) {
-    api = JSON.parse(fm.readString(cachePath));
-    fromCache = true;
-  } else {
-    throw lastErr || new Error('데이터 없음');
-  }
-  return { weeks: parseGrid(api), fromCache };
 }
 
-/* ===== 주간 위젯 (DrawContext 격자) — 모든 크기 공통, 크기에 맞춰 축소 ===== */
-function buildWeekWidget(weeks, fromCache) {
+/* ===== 주간 격자 렌더 (전 크기 공통) ===== */
+function buildWeekWidget(week, fromCache) {
   const w = new ListWidget();
   w.backgroundColor = new Color('#FFFFFF');
   w.url = PWA_URL;
   w.setPadding(0, 0, 0, 0);
   const ts = todaySerial();
-  let week = weeks.find(x => ts >= x.monday && ts < x.monday + 7);
-  if (!week) week = weeks[0];
 
-  /* 위젯 포인트 크기 근사 (캔버스를 실제 크기로 그려야 글자가 선명) */
   const FAM = {
     small: [158, 158], medium: [338, 158], large: [338, 354], extraLarge: [715, 356],
   }[config.widgetFamily] || [715, 356];
@@ -222,8 +224,8 @@ function buildWeekWidget(weeks, fromCache) {
   ctx.setFillColor(new Color('#FFFFFF'));
   ctx.fillRect(new Rect(0, 0, W, H));
 
-  const big = H >= 300;                 /* large/XL */
-  const TOP = big ? 26 : 0;             /* 제목 줄 (작은 위젯은 생략) */
+  const big = H >= 300;
+  const TOP = big ? 26 : 0;
   const HDR = big ? 26 : 17;
   const timeW = W >= 600 ? 56 : (W >= 300 ? 26 : 20);
   const dayW = (W - timeW) / 7;
@@ -244,7 +246,6 @@ function buildWeekWidget(weeks, fromCache) {
   const gy = p => TOP + HDR + p * rowH;
   const todayD = (ts >= week.monday && ts < week.monday + 7) ? ts - week.monday : -1;
 
-  /* 요일 헤더 */
   for (let d = 0; d < 7; d++) {
     const bg = d === 6 ? '#F7D2D2' : (d === 5 ? '#E7EEF6' : '#F1EFE8');
     ctx.setFillColor(new Color(bg));
@@ -255,10 +256,9 @@ function buildWeekWidget(weeks, fromCache) {
     ctx.setTextColor(new Color('#3a3a37'));
     ctx.drawTextInRect(DAY_NAMES[d] + (dayW >= 38 ? ' ' + ymd.m + '.' + ymd.d : ''), new Rect(gx(d), TOP + (HDR - fHdr) / 2 - 1, dayW, fHdr + 4));
   }
-  /* 교시 열 (좁으면 교시 번호만, 작은 위젯은 주차 라벨을 코너에) */
   ctx.setFillColor(new Color('#F1EFE8'));
   ctx.fillRect(new Rect(0, TOP, timeW, HDR + 9 * rowH));
-  if (!big) {
+  if (!big && week.label) {
     ctx.setTextAlignedCenter();
     ctx.setFont(Font.boldSystemFont(Math.max(6, fHdr - 2)));
     ctx.setTextColor(new Color('#5f5e5a'));
@@ -286,7 +286,6 @@ function buildWeekWidget(weeks, fromCache) {
     ctx.addPath(path);
     ctx.strokePath();
   };
-  /* 칸 */
   for (const cm of week.cells) {
     const x = gx(cm.d), y = gy(cm.p);
     const ww = dayW * cm.colSpan, hh = rowH * cm.rowSpan;
@@ -311,7 +310,6 @@ function buildWeekWidget(weeks, fromCache) {
       }
     }
   }
-  /* 외곽선 + 오늘 열 강조 */
   strokeRectPx(0, TOP, timeW + 7 * dayW, HDR + 9 * rowH);
   if (todayD >= 0) {
     strokeRectPx(gx(todayD) + 1, TOP + 1, dayW - 2, HDR + 9 * rowH - 2, new Color('#2E75B6'), 2);
@@ -325,8 +323,8 @@ function buildWeekWidget(weeks, fromCache) {
 async function main() {
   let widget;
   try {
-    const { weeks, fromCache } = await loadWeeks();
-    widget = buildWeekWidget(weeks, fromCache);   /* 모든 크기 = 주간 격자 */
+    const { week, fromCache } = await loadWeek();
+    widget = buildWeekWidget(week, fromCache);
   } catch (e) {
     widget = new ListWidget();
     widget.backgroundColor = new Color('#FFFFFF');
