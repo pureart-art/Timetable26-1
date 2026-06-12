@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>위젯 미리보기</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:transparent;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+.frame{background:#fff;border-radius:22px;box-shadow:0 4px 18px rgba(0,0,0,.16);padding:0;overflow:hidden;line-height:0}
+canvas{width:715px;max-width:100%;height:auto}
+.err{font-size:13px;color:#C04848;padding:20px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="frame" id="frame"><canvas id="cv"></canvas></div>
+<script>
+/* 실제 Scriptable 위젯 코드(widget/timetable-widget.js)를 브라우저 Canvas로
+   렌더링하는 어댑터 — 위젯이 업데이트되면 이 미리보기도 자동으로 같아짐. */
+(async () => {
+  const S = 2;             // 레티나 선명도 배율
+  const cv = document.getElementById('cv');
+  const c2d = cv.getContext('2d');
+  let curFill = '#000', curStroke = '#000', curLineW = 1,
+      curFont = { size: 10, bold: true }, curText = '#000', curAlign = 'center', pendingRects = [];
+
+  class Color { constructor(hex) { this.hex = hex; } }
+  const Font = {
+    boldSystemFont: s => ({ size: s, bold: true }),
+    systemFont: s => ({ size: s, bold: false }),
+  };
+  class Size { constructor(w, h) { this.width = w; this.height = h; } }
+  class Rect { constructor(x, y, w, h) { this.x = x; this.y = y; this.w = w; this.h = h; } }
+  class Path { constructor() { this.rects = []; } addRect(r) { this.rects.push(r); } }
+
+  function wrapText(text, maxW) {
+    const out = [];
+    for (const seg of String(text).split('\n')) {
+      let cur = '';
+      for (const ch of seg) {
+        if (c2d.measureText(cur + ch).width > maxW && cur) { out.push(cur); cur = ch; }
+        else cur += ch;
+      }
+      out.push(cur);
+    }
+    return out;
+  }
+
+  class DrawContext {
+    set size(v) { cv.width = v.width * S; cv.height = v.height * S; }
+    set opaque(v) {} set respectScreenScale(v) {}
+    setFillColor(c) { curFill = c.hex; }
+    fillRect(r) { c2d.fillStyle = curFill; c2d.fillRect(r.x * S, r.y * S, r.w * S, r.h * S); }
+    setStrokeColor(c) { curStroke = c.hex; }
+    setLineWidth(n) { curLineW = n; }
+    addPath(p) { pendingRects = p.rects; }
+    strokePath() {
+      c2d.strokeStyle = curStroke; c2d.lineWidth = curLineW * S;
+      for (const r of pendingRects) c2d.strokeRect(r.x * S, r.y * S, r.w * S, r.h * S);
+      pendingRects = [];
+    }
+    setTextAlignedLeft() { curAlign = 'left'; }
+    setTextAlignedCenter() { curAlign = 'center'; }
+    setFont(f) { curFont = f; }
+    setTextColor(c) { curText = c.hex; }
+    drawTextInRect(t, r) {
+      c2d.save();
+      c2d.beginPath(); c2d.rect(r.x * S, r.y * S, r.w * S, r.h * S); c2d.clip();
+      c2d.font = (curFont.bold ? '700 ' : '400 ') + (curFont.size * S) + 'px -apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+      c2d.fillStyle = curText;
+      c2d.textBaseline = 'top';
+      c2d.textAlign = curAlign;
+      const lines = wrapText(t, r.w * S - 2);
+      const lh = curFont.size * 1.22 * S;
+      let y = r.y * S + 1;
+      for (const ln of lines) {
+        c2d.fillText(ln, curAlign === 'center' ? (r.x + r.w / 2) * S : r.x * S + 1, y);
+        y += lh;
+      }
+      c2d.restore();
+    }
+    getImage() { return cv; }
+  }
+
+  class Request {
+    constructor(url) { this.url = url; }
+    set headers(h) {} set timeoutInterval(v) {}
+    async loadJSON() { return (await fetch(this.url)).json(); }
+    async loadString() { return (await fetch(this.url)).text(); }
+  }
+  const memStore = {};
+  const FileManager = { local: () => ({
+    joinPath: (a, b) => a + '/' + b, cacheDirectory: () => 'c',
+    writeString: (p, s) => { memStore[p] = s; }, fileExists: p => p in memStore, readString: p => memStore[p],
+  })};
+  class WidgetText { set font(v) {} set textColor(v) {} set lineLimit(v) {} }
+  class WidgetImage { centerAlignImage() {} applyFittingContentMode() {} set resizable(v) {} }
+  class ListWidget {
+    addText(t) { showError(t); return new WidgetText(); }
+    addImage(i) { return new WidgetImage(); }
+    setPadding() {}
+    set backgroundColor(v) {} set url(v) {} set refreshAfterDate(v) {} set backgroundImage(v) {}
+    async presentExtraLarge() {} async presentLarge() {} async presentMedium() {} async presentSmall() {}
+  }
+  function showError(msg) {
+    document.getElementById('frame').innerHTML = '<div class="err">' + msg.replace(/\n/g, '<br>') + '</div>';
+  }
+
+  const env = {
+    Request, FileManager, ListWidget, Color, Font, Size, Rect, Path, DrawContext,
+    config: { runsInWidget: true, widgetFamily: 'extraLarge' },
+    args: { widgetParameter: null },
+    Script: { setWidget: w => {}, complete: () => {} },
+  };
+  try {
+    const code = await (await fetch('widget/timetable-widget.js?t=' + Math.floor(Date.now() / 600000))).text();
+    await new Function(...Object.keys(env), 'return (async () => {' + code + '})()')(...Object.values(env));
+  } catch (e) {
+    showError('미리보기를 불러오지 못했어요\n' + e.message);
+  }
+})();
+</script>
+</body>
+</html>
