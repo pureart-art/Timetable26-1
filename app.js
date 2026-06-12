@@ -80,15 +80,17 @@ function isRedHex(hex) {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
   return r >= 180 && g <= 115 && b <= 115;
 }
-/* 시트 원색에 흰색 42%만 섞음 — 색감 유지 + 검정 글자 가독성 */
-function lightenBg(hex) {
+/* 시트 원색에 흰색을 섞음 — 기본 42%(가독성), 시험 칸은 12%(원색에 가깝게 진하게) */
+function lightenBg(hex, mix) {
   if (isWhite(hex)) return '#FFFFFF';
+  const m = mix === undefined ? 0.42 : mix;
   const f = i => {
     const v = parseInt(hex.slice(i, i + 2), 16);
-    return Math.round(v + (255 - v) * 0.42).toString(16).padStart(2, '0').toUpperCase();
+    return Math.round(v + (255 - v) * m).toString(16).padStart(2, '0').toUpperCase();
   };
   return '#' + f(1) + f(3) + f(5);
 }
+function examBg(bgRaw) { return bgRaw ? lightenBg(bgRaw, 0.12) : '#FFFFFF'; }
 
 /* ===== 파서 ===== */
 function getCell(rowData, r, c) {
@@ -313,7 +315,8 @@ function makeCellDiv(cellModel, gridCol, gridRow, colSpan, rowSpan, extraCls) {
   div.style.gridColumn = gridCol + (colSpan > 1 ? ' / span ' + colSpan : '');
   div.style.gridRow = gridRow + (rowSpan > 1 ? ' / span ' + rowSpan : '');
   if (cellModel) {
-    if (!cellModel.isExam && cellModel.bg && cellModel.bg !== '#FFFFFF') div.style.background = cellModel.bg;
+    const bg = cellModel.isExam ? examBg(cellModel.bgRaw) : cellModel.bg;
+    if (bg && bg !== '#FFFFFF') div.style.background = bg;
     cellModel.lines.forEach(ln => {
       const el = document.createElement('div');
       el.className = lineClass(ln.text);
@@ -485,7 +488,7 @@ function renderMonth() {
         list.slice(0, 2).forEach(({ cm, first }) => {
           const chip = document.createElement('div');
           chip.className = 'mchip' + (first ? '' : ' cont') + (cm.isExam ? ' exam' : '');
-          if (!cm.isExam) chip.style.background = cm.bg || '#FFFFFF';
+          chip.style.background = (cm.isExam ? examBg(cm.bgRaw) : cm.bg) || '#FFFFFF';
           if (first) {
             chip.textContent = chipLabel(cm.lines[0].text);
             chip.title = cm.lines[0].text;

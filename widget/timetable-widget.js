@@ -1,8 +1,7 @@
-// TIMETABLE_WIDGET v8 — 의학과 2학년 시간표 Scriptable 위젯 본체
+// TIMETABLE_WIDGET v9 — 의학과 2학년 시간표 Scriptable 위젯 본체
 // 로더가 이 파일을 받아 실행합니다. 직접 수정할 일은 없습니다.
 // 모든 크기에서 이번 주 주간 격자를 보여줍니다.
-// v8: 줄 분류를 패턴 기반으로(괄호줄=교수/과명, 그 외=과목명 — 여러 주제 줄 지원),
-//     모든 크기에서 가장자리 여백(PAD) 보장.
+// v9: 시험 칸 배경 = 원래 블록색을 진하게(흰색 12%만 혼합), 빨간 테두리·글자 유지.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -41,15 +40,17 @@ function isRedHex(hex) {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
   return r >= 180 && g <= 115 && b <= 115;
 }
-/* 시트 원색에 흰색 42%만 섞음 — 색감 유지 + 검정 글자 가독성 */
-function lightenBg(hex) {
+/* 시트 원색에 흰색을 섞음 — 기본 42%(가독성), 시험 칸은 12%(원색에 가깝게 진하게) */
+function lightenBg(hex, mix) {
   if (isWhite(hex)) return '#FFFFFF';
+  const m = mix === undefined ? 0.42 : mix;
   const f = i => {
     const v = parseInt(hex.slice(i, i + 2), 16);
-    return Math.round(v + (255 - v) * 0.42).toString(16).padStart(2, '0').toUpperCase();
+    return Math.round(v + (255 - v) * m).toString(16).padStart(2, '0').toUpperCase();
   };
   return '#' + f(1) + f(3) + f(5);
 }
+function examBg(bgRaw) { return bgRaw ? lightenBg(bgRaw, 0.12) : '#FFFFFF'; }
 function splitLines(text, runs, defaultColor) {
   const out = [];
   let pos = 0;
@@ -185,7 +186,8 @@ async function loadWeekBlock(headerRow, monday) {
       const text = (cell && cell.formattedValue) || '';
       const lines = text ? splitLines(text, cell.textFormatRuns, defColor) : [];
       cells.push({
-        p, d, rowSpan, colSpan, lines, bg: lightenBg(bgRaw), isEmpty: lines.length === 0,
+        p, d, rowSpan, colSpan, lines, bg: lightenBg(bgRaw),
+        bgRaw: isWhite(bgRaw) ? null : bgRaw, isEmpty: lines.length === 0,
         isExam: lines.length > 0 && isRedHex(lines[0].color),
       });
     }
@@ -293,7 +295,7 @@ function buildWeekWidget(week, fromCache) {
   for (const cm of week.cells) {
     const x = gx(cm.d), y = gy(cm.p);
     const ww = dayW * cm.colSpan, hh = rowH * cm.rowSpan;
-    const cellBg = cm.isExam ? '#FAD0CC' : cm.bg;
+    const cellBg = cm.isExam ? examBg(cm.bgRaw) : cm.bg;
     if (cellBg && cellBg !== '#FFFFFF') {
       ctx.setFillColor(new Color(cellBg));
       ctx.fillRect(new Rect(x, y, ww, hh));
