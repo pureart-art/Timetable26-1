@@ -338,10 +338,11 @@ function makeCellDiv(cellModel, gridCol, gridRow, colSpan, rowSpan, extraCls) {
    opts: { day(단일 요일), compact(좁은 화면 축소), fill(세로 꽉 채움) } */
 function buildWeekGrid(grid, w, opts) {
   const day = !!opts.day, compact = !!opts.compact, fill = !!opts.fill;
+  const minRow = opts.minRow != null ? opts.minRow : 44;
   grid.innerHTML = '';
   grid.style.gridTemplateRows = fill
-    ? 'auto repeat(9, minmax(44px, 1fr))'        /* 화면 꽉 차게 */
-    : 'auto repeat(9, minmax(56px, auto))';      /* 내용에 맞춰 늘어남(글자 안 잘림) */
+    ? 'auto repeat(9, minmax(' + minRow + 'px, 1fr))'  /* 화면 꽉 차게 (minRow=0이면 완전 분할) */
+    : 'auto repeat(9, minmax(56px, auto))';            /* 내용에 맞춰 늘어남(글자 안 잘림) */
   grid.className = 'gridc ' + (day ? 'dayview' : 'weekwide') + (compact ? ' compact' : '');
 
   const todaySerial = kstNow().serial;
@@ -435,7 +436,7 @@ function renderTwoWeek() {
     grid.appendChild(lab);
     const sub = document.createElement('div');
     grid.appendChild(sub);
-    buildWeekGrid(sub, w, { day: false, compact, fill: false });
+    buildWeekGrid(sub, w, { day: false, compact, fill: true, minRow: 0 });
   }
   const w1 = shown[0], wl = shown[shown.length - 1];
   if (w1) {
