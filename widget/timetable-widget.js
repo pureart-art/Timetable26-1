@@ -1,7 +1,8 @@
-// TIMETABLE_WIDGET v9 — 의학과 2학년 시간표 Scriptable 위젯 본체
+// TIMETABLE_WIDGET v10 — 의학과 2학년 시간표 Scriptable 위젯 본체
 // 로더가 이 파일을 받아 실행합니다. 직접 수정할 일은 없습니다.
-// 모든 크기에서 이번 주 주간 격자를 보여줍니다.
-// v9: 시험 칸 배경 = 원래 블록색을 진하게(흰색 12%만 혼합), 빨간 테두리·글자 유지.
+// 기본은 이번 주 주간 격자. 위젯 파라미터에 숫자 N을 넣으면 N주 뒤를 표시
+// (예: 1 = 다음 주). 스마트 스택에 [이번주, 다음주] 위젯을 쌓아 스와이프 가능.
+// v10: 위젯 파라미터로 주 오프셋 지원.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -127,6 +128,16 @@ async function findCurrentWeekRow() {
   let pick = headers[0];
   for (const h of headers) if (ts >= h.monday) pick = h;          // 오늘 이전 시작 중 가장 늦은 주
   if (ts >= pick.monday + 7) pick = headers[headers.length - 1];  // 학기 끝나면 마지막 주
+  /* 위젯 파라미터에 정수 N → 현재 주에서 N주 뒤 (다음 주 위젯 + 스마트 스택 스와이프용) */
+  let offset = 0;
+  if (typeof args !== 'undefined' && args.widgetParameter) {
+    const mt = String(args.widgetParameter).match(/-?\d+/);
+    if (mt) offset = parseInt(mt[0], 10);
+  }
+  if (offset) {
+    const idx = Math.max(0, Math.min(headers.length - 1, headers.indexOf(pick) + offset));
+    pick = headers[idx];
+  }
   return { row: pick.row, monday: pick.monday, ver };
 }
 

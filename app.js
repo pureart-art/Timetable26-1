@@ -296,8 +296,11 @@ function gotoToday() {
 function render() {
   $('tabDay').classList.toggle('sel', state.view === 'day');
   $('tabWeek').classList.toggle('sel', state.view === 'week');
+  $('tabTwo').classList.toggle('sel', state.view === 'two');
   $('tabMonth').classList.toggle('sel', state.view === 'month');
-  if (state.view === 'month') renderMonth(); else renderSheet(state.view);
+  if (state.view === 'month') renderMonth();
+  else if (state.view === 'two') renderTwoWeek();
+  else renderSheet(state.view);
 }
 
 /* 줄 분류: 괄호줄 = 교수/과명(l2), `라벨: A/B` = 초안자/검안자(l3), 나머지 = 과목명(l1)
@@ -331,32 +334,19 @@ function makeCellDiv(cellModel, gridCol, gridRow, colSpan, rowSpan, extraCls) {
   return div;
 }
 
-function renderSheet(mode) {
-  const w = state.weeks[state.weekIdx];
-  if (!w) return;
-  const grid = $('grid');
+/* 한 주 격자를 주어진 grid 엘리먼트에 그림 (오늘/주간/2주간 공용)
+   opts: { day(단일 요일), compact(좁은 화면 축소), fill(세로 꽉 채움) } */
+function buildWeekGrid(grid, w, opts) {
+  const day = !!opts.day, compact = !!opts.compact, fill = !!opts.fill;
   grid.innerHTML = '';
-  /* 남는 세로 공간을 교시 행들이 나눠 갖도록 (화면 꽉 차게) */
-  grid.style.gridTemplateRows = 'auto repeat(9, minmax(44px, 1fr))';
-  const day = mode === 'day';
-  const compact = !day && isCompact();
+  grid.style.gridTemplateRows = fill
+    ? 'auto repeat(9, minmax(44px, 1fr))'        /* 화면 꽉 차게 */
+    : 'auto repeat(9, minmax(56px, auto))';      /* 내용에 맞춰 늘어남(글자 안 잘림) */
   grid.className = 'gridc ' + (day ? 'dayview' : 'weekwide') + (compact ? ' compact' : '');
 
-  const todayWeek = weekOfToday() === state.weekIdx;
   const todaySerial = kstNow().serial;
-  const todayD = todayWeek ? todaySerial - w.monday : -1;
-  const nowP = todayWeek ? currentPeriodIdx() : -1;
-
-  /* 헤더 텍스트 */
-  if (day) {
-    const ymd = serialToYMD(w.monday + state.dayIdx);
-    $('weekLabel').textContent = w.label;
-    $('weekRange').textContent = ymd.y + '. ' + ymd.m + '. ' + ymd.d + ' (' + DAY_NAMES[state.dayIdx] + ')';
-  } else {
-    const mon = serialToYMD(w.monday), sun = serialToYMD(w.monday + 6);
-    $('weekLabel').textContent = w.label;
-    $('weekRange').textContent = mon.y + '. ' + mon.m + '. ' + mon.d + ' – ' + sun.m + '. ' + sun.d;
-  }
+  const todayD = (todaySerial >= w.monday && todaySerial < w.monday + 7) ? todaySerial - w.monday : -1;
+  const nowP = todayD >= 0 ? currentPeriodIdx() : -1;
 
   const days = day ? [state.dayIdx] : [0, 1, 2, 3, 4, 5, 6];
 
@@ -409,7 +399,50 @@ function renderSheet(mode) {
     }
     for (let p = 0; p < 9; p++) if (!placed.has(p)) grid.appendChild(makeCellDiv(null, 3, 2 + p, 1, 1, ''));
   }
+}
 
+function renderSheet(mode) {
+  const w = state.weeks[state.weekIdx];
+  if (!w) return;
+  const day = mode === 'day';
+  buildWeekGrid($('grid'), w, { day, compact: !day && isCompact(), fill: true });
+
+  if (day) {
+    const ymd = serialToYMD(w.monday + state.dayIdx);
+    $('weekLabel').textContent = w.label;
+    $('weekRange').textContent = ymd.y + '. ' + ymd.m + '. ' + ymd.d + ' (' + DAY_NAMES[state.dayIdx] + ')';
+  } else {
+    const mon = serialToYMD(w.monday), sun = serialToYMD(w.monday + 6);
+    $('weekLabel').textContent = w.label;
+    $('weekRange').textContent = mon.y + '. ' + mon.m + '. ' + mon.d + ' – ' + sun.m + '. ' + sun.d;
+  }
+  renderMeta();
+}
+
+/* ===== 2주간 보기: 이번 주 + 다음 주를 세로로 쌓아 모든 줄(과목·교수·검안자)이 보이게 ===== */
+function renderTwoWeek() {
+  const grid = $('grid');
+  grid.className = 'twoweek';
+  grid.style.gridTemplateRows = '';
+  grid.innerHTML = '';
+  const compact = isCompact();
+  const shown = [state.weeks[state.weekIdx], state.weeks[state.weekIdx + 1]].filter(Boolean);
+  for (const w of shown) {
+    const lab = document.createElement('div');
+    lab.className = 'twlabel';
+    const mon = serialToYMD(w.monday), sun = serialToYMD(w.monday + 6);
+    lab.textContent = w.label + ' · ' + mon.m + '. ' + mon.d + ' – ' + sun.m + '. ' + sun.d;
+    grid.appendChild(lab);
+    const sub = document.createElement('div');
+    grid.appendChild(sub);
+    buildWeekGrid(sub, w, { day: false, compact, fill: false });
+  }
+  const w1 = shown[0], wl = shown[shown.length - 1];
+  if (w1) {
+    const a = serialToYMD(w1.monday), b = serialToYMD(wl.monday + 6);
+    $('weekLabel').textContent = shown.length > 1 ? w1.label + '–' + wl.label : w1.label;
+    $('weekRange').textContent = a.m + '. ' + a.d + ' – ' + b.m + '. ' + b.d;
+  }
   renderMeta();
 }
 
@@ -562,7 +595,7 @@ function navDelta(dir) {
     state.monthM += dir;
     if (state.monthM < 1) { state.monthM = 12; state.monthY--; }
     if (state.monthM > 12) { state.monthM = 1; state.monthY++; }
-  } else if (state.view === 'week') {
+  } else if (state.view === 'week' || state.view === 'two') {
     state.weekIdx = Math.max(0, Math.min(state.weeks.length - 1, state.weekIdx + dir));
   } else {
     /* 하루 보기: 주 경계 넘어 이동 */
@@ -609,6 +642,7 @@ function bindUI() {
   $('btnNext').addEventListener('click', () => navDelta(1));
   $('tabDay').addEventListener('click', () => { state.view = 'day'; gotoToday(); render(); });
   $('tabWeek').addEventListener('click', () => { state.view = 'week'; gotoToday(); render(); });
+  $('tabTwo').addEventListener('click', () => { state.view = 'two'; gotoToday(); render(); });
   $('tabMonth').addEventListener('click', () => {
     state.view = 'month';
     const n = kstNow();
