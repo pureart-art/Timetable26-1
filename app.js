@@ -320,18 +320,41 @@ function makeCellDiv(cellModel, gridCol, gridRow, colSpan, rowSpan, extraCls) {
   if (cellModel) {
     const bg = cellModel.isExam ? examBg(cellModel.bgRaw) : cellModel.bg;
     if (bg && bg !== '#FFFFFF') div.style.background = bg;
-    cellModel.lines.forEach(ln => {
-      const el = document.createElement('div');
-      el.className = lineClass(ln.text);
-      el.textContent = ln.text;
-      el.style.color = ln.color || '#000000';
-      div.appendChild(el);
-    });
     if (cellModel.lines.length) {
+      const inner = document.createElement('div');  /* 칸에 맞춰 자동 축소되는 래퍼 */
+      inner.className = 'cfit';
+      cellModel.lines.forEach(ln => {
+        const el = document.createElement('div');
+        el.className = lineClass(ln.text);
+        el.textContent = ln.text;
+        el.style.color = ln.color || '#000000';
+        inner.appendChild(el);
+      });
+      div.appendChild(inner);
       div.addEventListener('click', () => showPop(cellModel));
     }
   }
   return div;
+}
+
+/* 렌더 후 각 칸의 글자가 칸 높이를 넘치면 글자를 그만큼 축소(scale)해 전부 보이게.
+   읽기(측정) → 쓰기(변형)를 일괄 처리해 레이아웃 thrashing 최소화. */
+function fitCells(root) {
+  const inners = Array.prototype.slice.call(root.querySelectorAll('.cfit'));
+  if (!inners.length) return;
+  inners.forEach(i => { i.style.transform = ''; });          /* 측정 전 초기화 */
+  const cs = getComputedStyle(inners[0].parentElement);
+  const padV = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  const padH = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  const data = inners.map(inner => {
+    const cell = inner.parentElement;
+    return { inner, availH: cell.clientHeight - padV, availW: cell.clientWidth - padH, h: inner.offsetHeight, w: inner.offsetWidth };
+  });
+  for (const d of data) {
+    if (d.h <= 0 || d.availH <= 0) continue;
+    const k = Math.min(1, d.availH / d.h, d.availW / d.w);
+    if (k < 0.985) d.inner.style.transform = 'scale(' + Math.max(0.3, k) + ')';
+  }
 }
 
 /* 한 주 격자를 주어진 grid 엘리먼트에 그림 (오늘/주간/2주간 공용)
@@ -417,6 +440,7 @@ function renderSheet(mode) {
     $('weekLabel').textContent = w.label;
     $('weekRange').textContent = mon.y + '. ' + mon.m + '. ' + mon.d + ' – ' + sun.m + '. ' + sun.d;
   }
+  fitCells($('grid'));
   renderMeta();
 }
 
@@ -444,6 +468,7 @@ function renderTwoWeek() {
     $('weekLabel').textContent = shown.length > 1 ? w1.label + '–' + wl.label : w1.label;
     $('weekRange').textContent = a.m + '. ' + a.d + ' – ' + b.m + '. ' + b.d;
   }
+  fitCells($('grid'));
   renderMeta();
 }
 

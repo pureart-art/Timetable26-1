@@ -17,6 +17,7 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 .dd{font-size:11px;color:#73726c;font-variant-numeric:tabular-nums}
 .per{background:#F1EFE8;font-size:12px;font-weight:500;color:#5f5e5a}
 .tim{background:#F1EFE8;font-size:11px;color:#8a897f;font-variant-numeric:tabular-nums;line-height:1.2}
+.cfit{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;transform-origin:center center}
 .l1,.l2,.l3{overflow-wrap:break-word;font-weight:600}
 .l1{font-size:12px;line-height:1.26;color:#000}
 .l2{font-size:11px;line-height:1.22;margin-top:2px;color:#000}
