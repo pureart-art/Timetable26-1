@@ -1,8 +1,8 @@
-// TIMETABLE_WIDGET v10 — 의학과 2학년 시간표 Scriptable 위젯 본체
+// TIMETABLE_WIDGET v11 — 의학과 2학년 시간표 Scriptable 위젯 본체
 // 로더가 이 파일을 받아 실행합니다. 직접 수정할 일은 없습니다.
 // 기본은 이번 주 주간 격자. 위젯 파라미터에 숫자 N을 넣으면 N주 뒤를 표시
 // (예: 1 = 다음 주). 스마트 스택에 [이번주, 다음주] 위젯을 쌓아 스와이프 가능.
-// v10: 위젯 파라미터로 주 오프셋 지원.
+// v11: 작은/중간 위젯에서도 과목명 1줄 + 교수명 표시(교수명 우선).
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -321,17 +321,38 @@ function buildWeekWidget(week, fromCache) {
       const profLines = cm.lines.filter(isProf);
       const tLine = titleLines[0] || cm.lines[0];
       const titleText = (titleLines.length ? titleLines : [cm.lines[0]]).map(l => l.text).join('\n');
-      const showSub = big && profLines.length > 0 && hh > 42;
+      const titleColor = new Color(tLine.color && tLine.color !== '#000000' ? tLine.color : '#000000');
+      const profText = profLines.map(s => s.text).join(' ');
+      const profColor = new Color(profLines[0] && isRedHex(profLines[0].color) ? '#FF0000' : '#000000');
+      const hasProf = profLines.length > 0;
       ctx.setTextAlignedCenter();
-      ctx.setFont(Font.boldSystemFont(cm.isExam ? fTitle + 1 : fTitle));
-      ctx.setTextColor(new Color(tLine.color && tLine.color !== '#000000' ? tLine.color : '#000000'));
-      const titleH = Math.max(fTitle + 2, showSub ? hh * 0.55 : hh - 4);
-      ctx.drawTextInRect(titleText, new Rect(x + 2, y + (showSub ? 3 : Math.max(2, (hh - titleH) / 2)), ww - 4, titleH));
-      if (showSub) {
-        const sub = profLines.map(s => s.text).join(' ');
-        ctx.setFont(Font.boldSystemFont(Math.max(7, fTitle - 2)));
-        ctx.setTextColor(new Color(isRedHex(profLines[0].color) ? '#FF0000' : '#000000'));
-        ctx.drawTextInRect(sub, new Rect(x + 2, y + hh * 0.58, ww - 4, hh * 0.38));
+
+      if (big) {
+        /* 큰 위젯: 과목명(여러 줄) + 교수명 */
+        const showSub = hasProf && hh > 42;
+        ctx.setFont(Font.boldSystemFont(cm.isExam ? fTitle + 1 : fTitle));
+        ctx.setTextColor(titleColor);
+        const titleH = Math.max(fTitle + 2, showSub ? hh * 0.55 : hh - 4);
+        ctx.drawTextInRect(titleText, new Rect(x + 2, y + (showSub ? 3 : Math.max(2, (hh - titleH) / 2)), ww - 4, titleH));
+        if (showSub) {
+          ctx.setFont(Font.boldSystemFont(Math.max(7, fTitle - 2)));
+          ctx.setTextColor(profColor);
+          ctx.drawTextInRect(profText, new Rect(x + 2, y + hh * 0.58, ww - 4, hh * 0.38));
+        }
+      } else if (hasProf && hh - (fTitle + 2) >= 6) {
+        /* 작은 위젯: 과목명은 맨 위 1줄만, 교수명을 아래에 (교수명이 더 중요) */
+        const titleLineH = fTitle + 2;
+        ctx.setFont(Font.boldSystemFont(fTitle));
+        ctx.setTextColor(titleColor);
+        ctx.drawTextInRect(tLine.text, new Rect(x + 1, y + 1, ww - 2, titleLineH));   /* 1줄(넘치면 클립) */
+        ctx.setFont(Font.boldSystemFont(Math.max(6, fTitle - 1)));
+        ctx.setTextColor(profColor);
+        ctx.drawTextInRect(profText, new Rect(x + 1, y + 1 + titleLineH, ww - 2, hh - 2 - titleLineH));
+      } else {
+        /* 교수명 없거나 칸이 너무 작음: 과목명만 */
+        ctx.setFont(Font.boldSystemFont(cm.isExam ? fTitle + 1 : fTitle));
+        ctx.setTextColor(titleColor);
+        ctx.drawTextInRect(titleText, new Rect(x + 2, y + 2, ww - 4, hh - 4));
       }
     }
   }
