@@ -338,7 +338,7 @@ function makeCellDiv(cellModel, gridCol, gridRow, colSpan, rowSpan, extraCls) {
    opts: { day(단일 요일), compact(좁은 화면 축소), fill(세로 꽉 채움) } */
 function buildWeekGrid(grid, w, opts) {
   const day = !!opts.day, compact = !!opts.compact, fill = !!opts.fill;
-  const minRow = opts.minRow != null ? opts.minRow : 44;
+  const minRow = opts.minRow != null ? opts.minRow : 0;
   grid.innerHTML = '';
   grid.style.gridTemplateRows = fill
     ? 'auto repeat(9, minmax(' + minRow + 'px, 1fr))'  /* 화면 꽉 차게 (minRow=0이면 완전 분할) */
