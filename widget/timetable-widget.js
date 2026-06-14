@@ -1,8 +1,8 @@
-// TIMETABLE_WIDGET v11 — 의학과 2학년 시간표 Scriptable 위젯 본체
+// TIMETABLE_WIDGET v12 — 의학과 2학년 시간표 Scriptable 위젯 본체
 // 로더가 이 파일을 받아 실행합니다. 직접 수정할 일은 없습니다.
 // 기본은 이번 주 주간 격자. 위젯 파라미터에 숫자 N을 넣으면 N주 뒤를 표시
 // (예: 1 = 다음 주). 스마트 스택에 [이번주, 다음주] 위젯을 쌓아 스와이프 가능.
-// v11: 작은/중간 위젯에서도 과목명 1줄 + 교수명 표시(교수명 우선).
+// v12: 모든 크기에서 과목명 1줄(클립) + 바로 아래 교수명(과명 제거, 예: (추일한)).
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -40,6 +40,16 @@ function isRedHex(hex) {
   if (!hex) return false;
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
   return r >= 180 && g <= 115 && b <= 115;
+}
+/* "(추일한, Psych)" → "(추일한)": 괄호 안 마지막 콤마 뒤가 영문/슬래시(과명)면 제거.
+   "(조용진, 송한수)"처럼 뒤가 한글 이름이면 그대로 둠. */
+function profName(text) {
+  const m = text.match(/^\(([\s\S]*)\)$/);
+  if (!m) return text;
+  let inside = m[1];
+  const ci = inside.lastIndexOf(',');
+  if (ci >= 0 && /[A-Za-z/]/.test(inside.slice(ci + 1))) inside = inside.slice(0, ci);
+  return '(' + inside.trim() + ')';
 }
 /* 시트 원색에 흰색을 섞음 — 기본 42%(가독성), 시험 칸은 12%(원색에 가깝게 진하게) */
 function lightenBg(hex, mix) {
@@ -314,45 +324,35 @@ function buildWeekWidget(week, fromCache) {
     strokeRectPx(x, y, ww, hh);
     if (cm.isExam) strokeRectPx(x + 1, y + 1, ww - 2, hh - 2, new Color('#FF3B30'), 2);
     if (!cm.isEmpty) {
-      /* 패턴 분류: 괄호줄 = 교수/과명, `라벨: A/B`(초안자/검안자·그룹) 줄 = 제외, 나머지 = 과목명(여러 줄 가능) */
+      /* 패턴 분류: 괄호줄 = 교수/과명, `라벨: A/B`(초안자/검안자·그룹) 줄 = 제외, 나머지 = 과목명 */
       const isProf = l => l.text.startsWith('(') && l.text.endsWith(')') && !(l.text.includes(':') && l.text.includes('/'));
       const isStaff = l => l.text.includes(':') && l.text.includes('/');
       const titleLines = cm.lines.filter(l => !isProf(l) && !isStaff(l));
       const profLines = cm.lines.filter(isProf);
       const tLine = titleLines[0] || cm.lines[0];
-      const titleText = (titleLines.length ? titleLines : [cm.lines[0]]).map(l => l.text).join('\n');
+      /* 과목명: 여러 줄이어도 한 줄로 합쳐 무조건 1줄(넘치면 클립) */
+      const titleText = (titleLines.length ? titleLines : [cm.lines[0]]).map(l => l.text).join(' ');
       const titleColor = new Color(tLine.color && tLine.color !== '#000000' ? tLine.color : '#000000');
-      const profText = profLines.map(s => s.text).join(' ');
+      const prof = profLines.length ? profName(profLines[0].text) : '';   /* 과명 제거: (추일한) */
       const profColor = new Color(profLines[0] && isRedHex(profLines[0].color) ? '#FF0000' : '#000000');
-      const hasProf = profLines.length > 0;
       ctx.setTextAlignedCenter();
 
-      if (big) {
-        /* 큰 위젯: 과목명(여러 줄) + 교수명 */
-        const showSub = hasProf && hh > 42;
-        ctx.setFont(Font.boldSystemFont(cm.isExam ? fTitle + 1 : fTitle));
-        ctx.setTextColor(titleColor);
-        const titleH = Math.max(fTitle + 2, showSub ? hh * 0.55 : hh - 4);
-        ctx.drawTextInRect(titleText, new Rect(x + 2, y + (showSub ? 3 : Math.max(2, (hh - titleH) / 2)), ww - 4, titleH));
-        if (showSub) {
-          ctx.setFont(Font.boldSystemFont(Math.max(7, fTitle - 2)));
-          ctx.setTextColor(profColor);
-          ctx.drawTextInRect(profText, new Rect(x + 2, y + hh * 0.58, ww - 4, hh * 0.38));
-        }
-      } else if (hasProf && hh - (fTitle + 2) >= 6) {
-        /* 작은 위젯: 과목명은 맨 위 1줄만, 교수명을 아래에 (교수명이 더 중요) */
-        const titleLineH = fTitle + 2;
+      const lh = fTitle + 2;                 /* 한 줄 높이 */
+      const profFs = Math.max(7, fTitle - 1);
+      if (prof && hh >= lh + profFs + 3) {
+        /* 과목명 1줄 + 바로 아래 줄에 교수명(빈 줄 없이). 2줄 블록을 세로 가운데 */
+        const top = y + Math.max(2, (hh - (lh + profFs + 3)) / 2);
         ctx.setFont(Font.boldSystemFont(fTitle));
         ctx.setTextColor(titleColor);
-        ctx.drawTextInRect(tLine.text, new Rect(x + 1, y + 1, ww - 2, titleLineH));   /* 1줄(넘치면 클립) */
-        ctx.setFont(Font.boldSystemFont(Math.max(6, fTitle - 1)));
+        ctx.drawTextInRect(titleText, new Rect(x + 2, top, ww - 4, lh));
+        ctx.setFont(Font.boldSystemFont(profFs));
         ctx.setTextColor(profColor);
-        ctx.drawTextInRect(profText, new Rect(x + 1, y + 1 + titleLineH, ww - 2, hh - 2 - titleLineH));
+        ctx.drawTextInRect(prof, new Rect(x + 2, top + lh, ww - 4, hh - (top - y) - lh - 1));
       } else {
-        /* 교수명 없거나 칸이 너무 작음: 과목명만 */
+        /* 교수명 없거나 칸이 너무 작음: 과목명만 1줄 가운데 */
         ctx.setFont(Font.boldSystemFont(cm.isExam ? fTitle + 1 : fTitle));
         ctx.setTextColor(titleColor);
-        ctx.drawTextInRect(titleText, new Rect(x + 2, y + 2, ww - 4, hh - 4));
+        ctx.drawTextInRect(titleText, new Rect(x + 2, y + Math.max(2, (hh - lh) / 2), ww - 4, lh));
       }
     }
   }
