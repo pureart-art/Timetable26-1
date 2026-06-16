@@ -143,6 +143,43 @@ table.feat td:first-child{white-space:nowrap;font-weight:700;color:#2E75B6;paddi
       위젯을 하나 더 추가하고 <span class="k">위젯 편집</span> → <b>Parameter</b> 칸에 <span class="k">1</span>을 입력하면 그 위젯은 <b>다음 주</b>를 보여줘요 (<span class="k">2</span> = 2주 뒤, <span class="k">3</span> = 3주 뒤…).<br>
       그리고 이번주·다음주 위젯을 <b>같은 자리에 겹쳐 쌓으면(스마트 스택)</b>, 위젯을 <b>위아래로 쓸어넘겨서</b> 이번 주 → 다음 주 → 다다음 주를 휙휙 넘겨볼 수 있어요!
     </div>
+    <div style="text-align:center;margin-top:12px">
+      <svg viewBox="0 0 320 220" width="100%" style="max-width:300px" role="img" aria-label="위젯을 스택으로 쌓아 스와이프로 다음 주 보기">
+        <rect x="76" y="190" width="168" height="20" rx="11" fill="#fbfaf6" stroke="#CFCCC4"/>
+        <text x="160" y="203.5" text-anchor="middle" font-size="9" font-weight="700" fill="#9a988f" font-family="sans-serif">다다음 주</text>
+        <rect x="67" y="175" width="186" height="22" rx="12" fill="#fff" stroke="#CFCCC4"/>
+        <text x="160" y="189.5" text-anchor="middle" font-size="9.5" font-weight="700" fill="#73726c" font-family="sans-serif">다음 주</text>
+        <rect x="56" y="24" width="208" height="150" rx="14" fill="#fff" stroke="#CFCCC4" stroke-width="1.3"/>
+        <text x="68" y="41" font-size="11" font-weight="700" fill="#3a3a37" font-family="sans-serif">이번 주 · 11주</text>
+        <g font-size="7" font-weight="700" font-family="sans-serif" fill="#5f5e5a" text-anchor="middle">
+          <rect x="70" y="48" width="26" height="12" fill="#F1EFE8"/><text x="83" y="57">월</text>
+          <rect x="96" y="48" width="26" height="12" fill="#F1EFE8"/><text x="109" y="57">화</text>
+          <rect x="122" y="48" width="26" height="12" fill="#F1EFE8"/><text x="135" y="57">수</text>
+          <rect x="148" y="48" width="26" height="12" fill="#F1EFE8"/><text x="161" y="57">목</text>
+          <rect x="174" y="48" width="26" height="12" fill="#F1EFE8"/><text x="187" y="57">금</text>
+          <rect x="200" y="48" width="26" height="12" fill="#E7EEF6"/><text x="213" y="57">토</text>
+          <rect x="226" y="48" width="26" height="12" fill="#F7D2D2"/><text x="239" y="57">일</text>
+        </g>
+        <g stroke="#ece9e1" stroke-width="1">
+          <line x1="70" y1="60" x2="252" y2="60"/><line x1="70" y1="86" x2="252" y2="86"/>
+          <line x1="70" y1="112" x2="252" y2="112"/><line x1="70" y1="138" x2="252" y2="138"/><line x1="70" y1="160" x2="252" y2="160"/>
+        </g>
+        <rect x="70" y="60" width="26" height="52" fill="#FCE4D6"/>
+        <rect x="122" y="60" width="26" height="26" fill="#FFF1D6"/>
+        <rect x="148" y="86" width="26" height="52" fill="#E2EFD9"/>
+        <rect x="200" y="60" width="26" height="26" fill="#FFF1D6"/>
+        <rect x="96" y="112" width="26" height="48" fill="#FCE4D6"/>
+        <rect x="148.5" y="48.5" width="25" height="111" fill="none" stroke="#2E75B6" stroke-width="2" rx="2"/>
+        <circle cx="255" cy="86" r="3" fill="#2E75B6"/><circle cx="255" cy="98" r="2.4" fill="#cdcabf"/><circle cx="255" cy="109" r="2.4" fill="#cdcabf"/>
+        <g stroke="#2E75B6" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="295" y1="74" x2="295" y2="126"/>
+          <polyline points="289,82 295,72 301,82"/>
+          <polyline points="289,118 295,128 301,118"/>
+        </g>
+        <text x="295" y="147" text-anchor="middle" font-size="9" font-weight="700" fill="#2E75B6" font-family="sans-serif">스와이프</text>
+      </svg>
+      <div style="font-size:12px;color:#73726c;margin-top:2px">스택을 위아래로 넘기면 <b>이번 주 → 다음 주 → 다다음 주</b></div>
+    </div>
   </div>
 
   <div class="card">
