@@ -1,0 +1,61 @@
+name: Refresh timetable snapshot
+
+# 구글 시트를 주기적으로 받아 data/snapshot.js(앱의 즉시-렌더 폴백)를 최신화한다.
+# 앱은 "스냅샷 먼저 → 라이브 백그라운드" 구조라, 모바일에서 라이브(12MB)가 실패해도
+# 사용자는 이 스냅샷으로 항상 최신 시간표를 즉시 본다.
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # 30분마다 (GitHub 스케줄은 부하 시 다소 지연될 수 있음)
+  workflow_dispatch:          # 수동 실행 버튼
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshot-refresh
+  cancel-in-progress: false
+
+env:
+  SHEET_ID: 1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4
+  API_KEY: AIzaSyCGjLnlXFA_Bi2mCKlUHyBUMxbE5Dlbj0k
+  PWA_URL: https://pureart-art.github.io/Timetable26-1/
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download sheet as xlsx
+        run: curl -fsSL -o _dl.xlsx "https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=xlsx"
+
+      - name: Unzip xlsx
+        run: |
+          rm -rf _extract && mkdir _extract
+          unzip -q _dl.xlsx -d _extract
+
+      - name: Fetch sheet title (version badge)
+        id: meta
+        run: |
+          TITLE=$(curl -fsSL -H "Referer: ${PWA_URL}" \
+            "https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=properties.title&key=${API_KEY}" \
+            | jq -r '.properties.title // ""')
+          echo "title=${TITLE}" >> "$GITHUB_OUTPUT"
+          echo "sheet title: ${TITLE}"
+
+      - name: Extract compact snapshot
+        shell: pwsh
+        run: ./tools/extract.ps1 -ExtractDir _extract -OutFile data/snapshot.js -Title "${{ steps.meta.outputs.title }}"
+
+      - name: Commit if changed
+        run: |
+          if [ -n "$(git status --porcelain data/snapshot.js)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data/snapshot.js
+            git commit -m "chore: refresh timetable snapshot ($(date -u +%Y-%m-%dT%H:%MZ))"
+            git push
+            echo "snapshot updated."
+          else
+            echo "no change — snapshot already current."
+          fi

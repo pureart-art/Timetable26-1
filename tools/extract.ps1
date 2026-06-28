@@ -2,7 +2,8 @@
 # 사용: powershell -File extract.ps1 -ExtractDir <unzipped xlsx dir> -OutFile <snapshot.js>
 param(
   [string]$ExtractDir = "C:\Users\wbnuj\timetable-pwa\_extract",
-  [string]$OutFile    = "C:\Users\wbnuj\timetable-pwa\data\snapshot.js"
+  [string]$OutFile    = "C:\Users\wbnuj\timetable-pwa\data\snapshot.js",
+  [string]$Title      = ""   # 시트 파일 제목(예: v46_26-1시간표_GY) — 버전 배지용. 비면 미포함
 )
 $ErrorActionPreference = 'Stop'
 
@@ -12,7 +13,7 @@ $nsMain = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 $nsDraw = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
 # ---------- theme ----------
-$themeDoc = Read-Xml (Join-Path $ExtractDir "xl\theme\theme1.xml")
+$themeDoc = Read-Xml (Join-Path $ExtractDir "xl/theme/theme1.xml")
 $nsm = New-Object System.Xml.XmlNamespaceManager($themeDoc.NameTable)
 $nsm.AddNamespace("a", $nsDraw)
 $clrScheme = $themeDoc.SelectSingleNode("//a:clrScheme", $nsm)
@@ -105,7 +106,7 @@ function ResolveColor($colorNode) {
 }
 
 # ---------- styles ----------
-$stylesDoc = Read-Xml (Join-Path $ExtractDir "xl\styles.xml")
+$stylesDoc = Read-Xml (Join-Path $ExtractDir "xl/styles.xml")
 $nss = New-Object System.Xml.XmlNamespaceManager($stylesDoc.NameTable)
 $nss.AddNamespace("m", $nsMain)
 
@@ -146,7 +147,7 @@ function IsDateFmt([int]$id) {
 }
 
 # ---------- shared strings ----------
-$ssDoc = Read-Xml (Join-Path $ExtractDir "xl\sharedStrings.xml")
+$ssDoc = Read-Xml (Join-Path $ExtractDir "xl/sharedStrings.xml")
 $nsr = New-Object System.Xml.XmlNamespaceManager($ssDoc.NameTable)
 $nsr.AddNamespace("m", $nsMain)
 $sharedStrings = New-Object System.Collections.ArrayList
@@ -171,7 +172,7 @@ foreach ($si in $ssDoc.SelectNodes("/m:sst/m:si", $nsr)) {
 }
 
 # ---------- sheet1 ----------
-$sheetDoc = Read-Xml (Join-Path $ExtractDir "xl\worksheets\sheet1.xml")
+$sheetDoc = Read-Xml (Join-Path $ExtractDir "xl/worksheets/sheet1.xml")
 $nsh = New-Object System.Xml.XmlNamespaceManager($sheetDoc.NameTable)
 $nsh.AddNamespace("m", $nsMain)
 
@@ -272,6 +273,8 @@ $snapshot = @{
     data = @(@{ rowData = $rowDataList })
   })
 }
+# 최상위 properties.title — 앱이 버전 배지(v46 등)를 여기서 읽음 (라이브 응답과 같은 위치)
+if ($Title -ne "") { $snapshot.properties = @{ title = $Title } }
 
 $json = ConvertTo-Json -InputObject $snapshot -Depth 16 -Compress
 $outDir = Split-Path $OutFile -Parent

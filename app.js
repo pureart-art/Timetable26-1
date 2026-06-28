@@ -10,7 +10,8 @@ const CONFIG = {
   SHEET_ID: '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4',
   API_KEY: 'AIzaSyCGjLnlXFA_Bi2mCKlUHyBUMxbE5Dlbj0k',
   TAB: '시간표',
-  POLL_MS: 45000,
+  POLL_MS: 300000,        // 라이브 재시도 주기 5분 (스냅샷이 먼저 즉시 표시되므로 자주 칠 필요 없음)
+  FETCH_TIMEOUT_MS: 20000, // 라이브 요청이 멈추면 20초에 포기하고 스냅샷 유지(모바일 12MB 행 방지)
 };
 
 const FIELDS = 'properties.title,sheets.properties,sheets.merges,' +
@@ -237,27 +238,21 @@ function loadSnapshot() {
     document.head.appendChild(s);
   });
 }
-async function fetchData(isFirst) {
-  if (!CONFIG.API_KEY) {
-    const snap = await loadSnapshot();
-    state.source = 'snapshot';
-    return snap;
-  }
+/* 라이브 시트 fetch — 타임아웃 있음. 실패(네트워크/HTTP/리퍼러403/타임아웃) 시 null 반환.
+   호출부는 null이면 기존 화면(스냅샷/직전 라이브)을 그대로 유지한다. */
+async function fetchLive() {
+  if (!CONFIG.API_KEY) return null;
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), CONFIG.FETCH_TIMEOUT_MS) : null;
   try {
-    const res = await fetch(apiUrl());
+    const res = await fetch(apiUrl(), ctrl ? { signal: ctrl.signal } : undefined);
     if (!res.ok) throw new Error('Sheets API HTTP ' + res.status);
-    const json = await res.json();
-    state.source = 'live';
-    state.lastFetched = new Date();
-    return json;
+    return await res.json();
   } catch (e) {
-    console.warn('API 실패, 폴백:', e.message);
-    if (isFirst) {
-      const snap = await loadSnapshot();
-      state.source = 'snapshot';
-      return snap;
-    }
+    console.warn('라이브 실패, 스냅샷 유지:', e.name === 'AbortError' ? '타임아웃' : e.message);
     return null;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -634,32 +629,54 @@ function navDelta(dir) {
 }
 
 /* ===== 메인 ===== */
-async function refresh(isFirst) {
-  const json = await fetchData(isFirst);
-  if (!json) { renderMeta(); return; }
+/* json(스냅샷 또는 라이브)을 파싱해 화면에 반영.
+   initView=true면 오늘 주로 이동(첫 페인트). false면 현재 보고 있는 주를 유지하고 데이터만 갱신. */
+function applyData(json, initView) {
+  const str = JSON.stringify(json);
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = (h * 31 + str.charCodeAt(i)) | 0; }
+  const sig = h + '|' + str.length;
+  const weeks = parseGrid(json);
+  const title = (json.properties && json.properties.title) || '';
+  const vm = title.match(/v\s?\d+/i);
+  if (vm) state.ver = vm[0].replace(/\s/, '');   // 스냅샷엔 버전이 없을 수 있음 — 있을 때만 갱신
+  const changed = sig !== state.dataSig;
+  state.dataSig = sig;
+  state.weeks = weeks;
+  if (initView) {
+    gotoToday();
+    const n = kstNow();
+    state.monthY = n.y; state.monthM = n.m;
+  }
+  if (initView || changed) render(); else renderMeta();
+}
+
+/* 번들 스냅샷으로 즉시 렌더 (항상 성공해야 함 — 첫 화면 보장) */
+async function loadSnapshotData(initView) {
   try {
-    const str = JSON.stringify(json);
-    let h = 0;
-    for (let i = 0; i < str.length; i++) { h = (h * 31 + str.charCodeAt(i)) | 0; }
-    const sig = h + '|' + str.length;
-    const weeks = parseGrid(json);
-    const title = (json.properties && json.properties.title) || '';
-    const vm = title.match(/v\s?\d+/i);
-    state.ver = vm ? vm[0].replace(/\s/, '') : '';
-    const changed = sig !== state.dataSig;
-    state.dataSig = sig;
-    state.weeks = weeks;
-    if (isFirst) {
-      gotoToday();
-      const n = kstNow();
-      state.monthY = n.y; state.monthM = n.m;
-    }
-    if (isFirst || changed) render(); else renderMeta();
+    const snap = await loadSnapshot();
+    if (state.source !== 'live') state.source = 'snapshot';   // 라이브가 이미 떴으면 강등하지 않음
+    applyData(snap, initView);
+    return true;
   } catch (e) {
-    console.error(e);
-    if (isFirst) {
-      $('grid').innerHTML = '<div style="grid-column:1/-1;padding:20px;font-size:13px">시트 파싱 오류: ' + e.message + '</div>';
+    console.error('스냅샷 로드 실패:', e);
+    if (initView) {
+      $('grid').innerHTML = '<div style="grid-column:1/-1;padding:20px;font-size:13px">스냅샷 로드 실패: ' + e.message + '</div>';
     }
+    return false;
+  }
+}
+
+/* 백그라운드 라이브 갱신 — 성공하면 LIVE로 승격, 실패하면 현재 화면 유지(뷰 보존) */
+async function refreshLive() {
+  const json = await fetchLive();
+  if (!json) return;
+  try {
+    state.source = 'live';
+    state.lastFetched = new Date();
+    applyData(json, false);
+  } catch (e) {
+    console.error('라이브 파싱 오류:', e);
   }
 }
 
@@ -697,11 +714,14 @@ function bindUI() {
 
 async function main() {
   bindUI();
-  await refresh(true);
-  setInterval(() => { if (!document.hidden && CONFIG.API_KEY) refresh(false); }, CONFIG.POLL_MS);
+  /* 1) 스냅샷 먼저 즉시 렌더 — 사용자는 곧장 시간표를 본다(블랭크/행 없음) */
+  await loadSnapshotData(true);
+  /* 2) 라이브는 백그라운드에서 시도 — 되면 LIVE로 승격, 안 되면 스냅샷 유지 */
+  refreshLive();
+  setInterval(() => { if (!document.hidden && CONFIG.API_KEY) refreshLive(); }, CONFIG.POLL_MS);
   /* 현재 교시 강조 갱신 */
   setInterval(() => { if (!document.hidden) render(); }, 60000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && CONFIG.API_KEY) refresh(false); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && CONFIG.API_KEY) refreshLive(); });
   /* localhost(개발)에서는 SW 미등록 — 캐시가 코드 수정을 가리는 것 방지 */
   if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
