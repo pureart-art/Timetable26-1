@@ -668,7 +668,7 @@ function applyData(json, initView) {
   const changed = sig !== state.dataSig;
   state.dataSig = sig;
   state.weeks = weeks;
-    applyHighlights(state.weeks, getKeywords());
+  applyHighlights(state.weeks, getKeywords());
   if (initView) {
     gotoToday();
     const n = kstNow();
