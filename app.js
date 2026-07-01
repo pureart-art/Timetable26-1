@@ -14,6 +14,37 @@ const CONFIG = {
   FETCH_TIMEOUT_MS: 20000, // 라이브 요청이 멈추면 20초에 포기하고 스냅샷 유지(모바일 12MB 행 방지)
 };
 
+/* ===== 개인 하이라이트 (기기별) ===== */
+const HL_KEY = 'tt_hl';       // localStorage 키
+const HL_RED = '#FF0000';     // 개인/시험 공통 빨강
+function normHL(s) { return (s || '').replace(/\s+/g, '').toLowerCase(); }
+function getKeywords() {
+  let raw = '';
+  try { raw = localStorage.getItem(HL_KEY) || ''; } catch (e) {}
+  /* 개행으로만 분리 — 교수 키워드 '(이름, 과)'가 쉼표를 포함하므로 쉼표로 쪼개면 안 됨 */
+  return raw.split('\n').map(s => s.trim()).filter(Boolean);
+}
+function matchKeyword(text, keywords) {
+  if (!text || !keywords.length) return false;
+  const t = normHL(text);
+  return keywords.some(k => { const n = normHL(k); return n && t.includes(n); });
+}
+/* 각 줄 원색을 line._base에 보존하고, 키워드 매칭 줄만 빨강으로. 키워드 제거 시 _base로 복원(idempotent). */
+function applyHighlights(weeks, keywords) {
+  for (const w of weeks) {
+    for (const c of w.cells) {
+      for (const ln of c.lines) {
+        if (ln._base === undefined) ln._base = ln.color;
+        ln.color = (keywords.length && matchKeyword(ln.text, keywords)) ? HL_RED : ln._base;
+      }
+    }
+  }
+}
+function saveKeywords(raw) {
+  try { localStorage.setItem(HL_KEY, raw); } catch (e) {}
+  applyHighlights(state.weeks, getKeywords());
+  render();
+}
 const FIELDS = 'properties.title,sheets.properties,sheets.merges,' +
   'sheets.data.rowData.values(formattedValue,effectiveValue,' +
   'effectiveFormat.backgroundColor,effectiveFormat.textFormat.foregroundColor,' +
@@ -643,6 +674,7 @@ function applyData(json, initView) {
   const changed = sig !== state.dataSig;
   state.dataSig = sig;
   state.weeks = weeks;
+  applyHighlights(state.weeks, getKeywords());
   if (initView) {
     gotoToday();
     const n = kstNow();
@@ -694,6 +726,14 @@ function bindUI() {
   });
   $('popClose').addEventListener('click', () => { $('sheetpop').hidden = true; });
   $('sheetpop').addEventListener('click', e => { if (e.target === $('sheetpop')) $('sheetpop').hidden = true; });
+  $('btnHl').addEventListener('click', () => {
+    let raw = ''; try { raw = localStorage.getItem(HL_KEY) || ''; } catch (e) {}
+    $('hlInput').value = raw;
+    $('hlpop').hidden = false;
+  });
+  $('hlSave').addEventListener('click', () => { saveKeywords($('hlInput').value); $('hlpop').hidden = true; });
+  $('hlClose').addEventListener('click', () => { $('hlpop').hidden = true; });
+  $('hlpop').addEventListener('click', e => { if (e.target === $('hlpop')) $('hlpop').hidden = true; });
 
   /* 스와이프 = 화살표와 동일한 이동 */
   let tx = null;

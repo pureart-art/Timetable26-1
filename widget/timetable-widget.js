@@ -10,6 +10,32 @@ const API_KEY = 'AIzaSyCGjLnlXFA_Bi2mCKlUHyBUMxbE5Dlbj0k';   // 사이트용(리
 const WIDGET_KEY = '';                                        // 위젯 전용 예비 키 — 필요 시 입력
 const TAB = '시간표';
 
+/* ===== 개인 하이라이트 (레포 밖 로컬 파일 tt-hl.txt) ===== */
+let HL_KEYWORDS = [];
+function normHL(s) { return (s || '').replace(/\s+/g, '').toLowerCase(); }
+function matchKeyword(text, keywords) {
+  if (!text || !keywords.length) return false;
+  const t = normHL(text);
+  return keywords.some(k => { const n = normHL(k); return n && t.includes(n); });
+}
+function loadKeywords() {
+  const tryFm = [() => FileManager.iCloud(), () => FileManager.local()];
+  for (const mk of tryFm) {
+    try {
+      const fm = mk();
+      const path = fm.joinPath(fm.documentsDirectory(), 'tt-hl.txt');
+      if (fm.fileExists(path)) {
+        try { if (fm.isFileStoredIniCloud(path) && !fm.isFileDownloaded(path)) fm.downloadFileFromiCloud(path); } catch (e) {}
+        const raw = fm.readString(path) || '';
+        /* 개행으로만 분리 — 교수 키워드 '(이름, 과)'가 쉼표를 포함하므로 쉼표로 쪼개면 안 됨 */
+        const kw = raw.split('\n').map(s => s.trim()).filter(Boolean);
+        if (kw.length) return kw;
+      }
+    } catch (e) {}
+  }
+  return [];
+}
+
 const PERIODS = [
   { no: '1', t1: '09:00' }, { no: '2', t1: '10:00' }, { no: '3', t1: '11:00' }, { no: '4', t1: '12:00' },
   { no: '점심', t1: '13:00' }, { no: '5', t1: '14:00' }, { no: '6', t1: '15:00' }, { no: '7', t1: '16:00' }, { no: '8', t1: '17:00' },
@@ -332,9 +358,12 @@ function buildWeekWidget(week, fromCache) {
       const tLine = titleLines[0] || cm.lines[0];
       /* 과목명: 여러 줄이어도 한 줄로 합쳐 무조건 1줄(넘치면 클립) */
       const titleText = (titleLines.length ? titleLines : [cm.lines[0]]).map(l => l.text).join(' ');
-      const titleColor = new Color(tLine.color && tLine.color !== '#000000' ? tLine.color : '#000000');
+      let titleHex = tLine.color && tLine.color !== '#000000' ? tLine.color : '#000000';
+      if (matchKeyword(tLine.text, HL_KEYWORDS)) titleHex = '#FF0000';
+      const titleColor = new Color(titleHex);
       const prof = profLines.length ? profName(profLines[0].text) : '';   /* 과명 제거: (추일한) */
-      const profColor = new Color(profLines[0] && isRedHex(profLines[0].color) ? '#FF0000' : '#000000');
+      const profRed = profLines[0] && (isRedHex(profLines[0].color) || matchKeyword(profLines[0].text, HL_KEYWORDS));
+      const profColor = new Color(profRed ? '#FF0000' : '#000000');
       ctx.setTextAlignedCenter();
 
       const lh = fTitle + 2;                 /* 한 줄 높이 */
@@ -371,6 +400,7 @@ function buildWeekWidget(week, fromCache) {
 
 /* ===== 메인 ===== */
 async function main() {
+  HL_KEYWORDS = loadKeywords();
   let widget;
   try {
     const { week, fromCache } = await loadWeek();
