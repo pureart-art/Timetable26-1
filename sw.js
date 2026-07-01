@@ -1,7 +1,7 @@
 /* 시간표 PWA 서비스 워커
    - 모든 요청: 네트워크 우선(항상 최신), 실패(오프라인) 시 캐시
    - Sheets API: 네트워크 우선, 실패 시 마지막 성공 응답 */
-const VERSION = 'v10';
+const VERSION = 'v11';
 const SHELL_CACHE = 'shell-' + VERSION;
 const DATA_CACHE = 'data-' + VERSION;
 const SHELL = [
