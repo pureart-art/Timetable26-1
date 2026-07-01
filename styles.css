@@ -104,3 +104,9 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 .sheetpop-inner .l3{font-size:13px;margin-top:6px}
 .sheetpop-inner .nbtn{margin-top:14px;width:100%}
 .poptime{font-size:11px;color:#8a897f;margin-bottom:6px;font-variant-numeric:tabular-nums}
+.hlbtn{font:inherit;font-size:13px;line-height:1;color:#8a897f;background:none;border:0;padding:1px 4px;margin-left:2px;cursor:pointer;vertical-align:1px;-webkit-tap-highlight-color:transparent}
+.hlbtn:active{color:#3a3a37}
+.hltitle{font-size:15px;font-weight:600;margin-bottom:8px}
+.hldesc{font-size:12.5px;color:#73726c;text-align:left;line-height:1.55;margin-bottom:10px}
+.hlinput{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:14px;line-height:1.5;border:0.5px solid #b5b2aa;border-radius:8px;padding:8px 10px;resize:vertical}
+.sheetpop-inner .nbtn.hlclose{margin-top:8px;background:#f4f2ec}

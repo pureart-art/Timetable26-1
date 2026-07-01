@@ -20,7 +20,7 @@
   <header class="topbar">
     <div class="titlewrap">
       <div class="title">의학과 2학년 시간표 — <span id="weekLabel">·</span><small id="weekRange"></small></div>
-      <div class="meta"><span id="verBadge" class="badge" hidden></span><span id="srcBadge" class="badge"></span><span id="updated"></span></div>
+      <div class="meta"><span id="verBadge" class="badge" hidden></span><span id="srcBadge" class="badge"></span><span id="updated"></span><button id="btnHl" class="hlbtn" type="button" aria-label="개인 하이라이트 설정" title="개인 하이라이트 설정">⚙</button></div>
     </div>
     <nav class="weeknav">
       <button id="btnPrev" class="nbtn" aria-label="이전">◀</button>
@@ -41,6 +41,15 @@
   <div class="sheetpop-inner">
     <div id="popBody"></div>
     <button id="popClose" class="nbtn">닫기</button>
+  </div>
+</div>
+<div id="hlpop" class="sheetpop" hidden>
+  <div class="sheetpop-inner">
+    <div class="hltitle">개인 하이라이트</div>
+    <div class="hldesc">본인 이름이나 키워드를 <b>한 줄에 하나씩</b> 넣으면 그 줄이 <b>이 기기에서만</b> 빨갛게 표시돼요. 다른 사람이 볼 때는 영향이 없어요.<br>교수님은 <b>(이름, 과)</b> 형태로 넣으면 같은 이름 다른 과와 안 헷갈려요.</div>
+    <textarea id="hlInput" class="hlinput" rows="6" placeholder="예: 홍길동&#10;(김철수, EM)"></textarea>
+    <button id="hlSave" class="nbtn" type="button">저장</button>
+    <button id="hlClose" class="nbtn hlclose" type="button">닫기</button>
   </div>
 </div>
 

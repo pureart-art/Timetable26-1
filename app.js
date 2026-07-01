@@ -39,6 +39,11 @@ function applyHighlights(weeks, keywords) {
     }
   }
 }
+function saveKeywords(raw) {
+  try { localStorage.setItem(HL_KEY, raw); } catch (e) {}
+  applyHighlights(state.weeks, getKeywords());
+  render();
+}
 const FIELDS = 'properties.title,sheets.properties,sheets.merges,' +
   'sheets.data.rowData.values(formattedValue,effectiveValue,' +
   'effectiveFormat.backgroundColor,effectiveFormat.textFormat.foregroundColor,' +
@@ -720,6 +725,14 @@ function bindUI() {
   });
   $('popClose').addEventListener('click', () => { $('sheetpop').hidden = true; });
   $('sheetpop').addEventListener('click', e => { if (e.target === $('sheetpop')) $('sheetpop').hidden = true; });
+  $('btnHl').addEventListener('click', () => {
+    let raw = ''; try { raw = localStorage.getItem(HL_KEY) || ''; } catch (e) {}
+    $('hlInput').value = raw;
+    $('hlpop').hidden = false;
+  });
+  $('hlSave').addEventListener('click', () => { saveKeywords($('hlInput').value); $('hlpop').hidden = true; });
+  $('hlClose').addEventListener('click', () => { $('hlpop').hidden = true; });
+  $('hlpop').addEventListener('click', e => { if (e.target === $('hlpop')) $('hlpop').hidden = true; });
 
   /* 스와이프 = 화살표와 동일한 이동 */
   let tx = null;
