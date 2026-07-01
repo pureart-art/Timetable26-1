@@ -27,7 +27,8 @@ function loadKeywords() {
       if (fm.fileExists(path)) {
         try { if (fm.isFileStoredIniCloud(path) && !fm.isFileDownloaded(path)) fm.downloadFileFromiCloud(path); } catch (e) {}
         const raw = fm.readString(path) || '';
-        const kw = raw.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+        /* 개행으로만 분리 — 교수 키워드 '(이름, 과)'가 쉼표를 포함하므로 쉼표로 쪼개면 안 됨 */
+        const kw = raw.split('\n').map(s => s.trim()).filter(Boolean);
         if (kw.length) return kw;
       }
     } catch (e) {}

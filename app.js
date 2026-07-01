@@ -21,7 +21,8 @@ function normHL(s) { return (s || '').replace(/\s+/g, '').toLowerCase(); }
 function getKeywords() {
   let raw = '';
   try { raw = localStorage.getItem(HL_KEY) || ''; } catch (e) {}
-  return raw.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+  /* 개행으로만 분리 — 교수 키워드 '(이름, 과)'가 쉼표를 포함하므로 쉼표로 쪼개면 안 됨 */
+  return raw.split('\n').map(s => s.trim()).filter(Boolean);
 }
 function matchKeyword(text, keywords) {
   if (!text || !keywords.length) return false;
