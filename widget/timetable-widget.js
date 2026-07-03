@@ -1,9 +1,11 @@
-// TIMETABLE_WIDGET v12 — 의학과 2학년 시간표 Scriptable 위젯 본체
+// TIMETABLE_WIDGET v13 — 의학과 2학년 시간표 Scriptable 위젯 본체
 // 로더가 이 파일을 받아 실행합니다. 직접 수정할 일은 없습니다.
 // 기본은 이번 주 주간 격자. 위젯 파라미터에 정수 N을 넣으면 N주 이동해 표시:
 // 양수=미래(1=다음 주, 3=3주 뒤), 음수=과거(-1=지난주, -2=지지난주). 범위 밖은 처음/끝 주로 클램프.
 // 스마트 스택에 여러 주 위젯을 쌓아 스와이프 가능.
 // v12: 모든 크기에서 과목명 1줄(클립) + 바로 아래 교수명(과명 제거, 예: (추일한)).
+// v13: 느린 네트워크에서 Scriptable 강제 종료(빨간 "Received timeout...") 방지 —
+//      요청 타임아웃 15→6초 + 데이터 로딩 총 8초 상한, 초과 시 캐시로 즉시 렌더('·오프').
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -121,7 +123,7 @@ function splitLines(text, runs, defaultColor) {
 async function apiGet(params, key, withReferer) {
   const url = 'https://sheets.googleapis.com/v4/spreadsheets/' + SHEET_ID + '?' + params + '&key=' + key;
   const req = new Request(url);
-  req.timeoutInterval = 15;
+  req.timeoutInterval = 6;
   if (withReferer) req.headers = { 'Referer': PWA_URL };
   const json = await req.loadJSON();
   if (!json || !json.sheets) {
@@ -243,17 +245,36 @@ async function loadWeekBlock(headerRow, monday) {
   return { label, monday, cells, holidays };
 }
 
+/* 데이터 로딩 총 대기 상한. 로더의 코드 fetch(최대 10초)와 합쳐도 iOS 위젯 실행 예산 안에
+   끝나야 Scriptable의 강제 종료(빨간 에러)를 안 맞는다 — 초과 시 네트워크를 포기하고 캐시 렌더. */
+const FETCH_BUDGET_MS = 8000;
+function afterMs(ms) { return new Promise(r => Timer.schedule(ms, false, () => r(null))); }
+
 async function loadWeek() {
   const fm = FileManager.local();
   const cachePath = fm.joinPath(fm.cacheDirectory(), 'timetable-week-v3.json');
+  const readCache = () =>
+    fm.fileExists(cachePath) ? { week: JSON.parse(fm.readString(cachePath)), fromCache: true } : null;
   try {
-    const hdr = await findCurrentWeekRow();
-    const week = await loadWeekBlock(hdr.row, hdr.monday);
-    week.ver = hdr.ver;
-    fm.writeString(cachePath, JSON.stringify(week));
-    return { week, fromCache: false };
+    const fetchP = (async () => {
+      const hdr = await findCurrentWeekRow();
+      const week = await loadWeekBlock(hdr.row, hdr.monday);
+      week.ver = hdr.ver;
+      return week;
+    })();
+    /* 상한에 져서 캐시로 넘어간 뒤 뒤늦게 도착한 결과도 다음 새로고침을 위해 캐시에 반영 */
+    fetchP.then(w => { try { fm.writeString(cachePath, JSON.stringify(w)); } catch (e) {} }, () => {});
+    const week = await Promise.race([fetchP, afterMs(FETCH_BUDGET_MS)]);
+    if (week) {
+      fm.writeString(cachePath, JSON.stringify(week));
+      return { week, fromCache: false };
+    }
+    const c = readCache();
+    if (c) return c;
+    throw new Error('네트워크가 느려 시간표를 못 받았어요. 다음 새로고침 때 다시 시도해요.');
   } catch (e) {
-    if (fm.fileExists(cachePath)) return { week: JSON.parse(fm.readString(cachePath)), fromCache: true };
+    const c = readCache();
+    if (c) return c;
     throw e;
   }
 }
