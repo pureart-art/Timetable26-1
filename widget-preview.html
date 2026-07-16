@@ -107,8 +107,12 @@ canvas{width:715px;max-width:100%;height:auto}
     document.getElementById('frame').innerHTML = '<div class="err">' + msg.replace(/\n/g, '<br>') + '</div>';
   }
 
+  /* Scriptable Timer 목: 위젯 v13의 afterMs()가 Timer.schedule로 데이터 로딩 상한을 건다.
+     브라우저엔 Timer가 없어 setTimeout으로 대체 — 없으면 'Timer is not defined'로 미리보기 전체가 죽음. */
+  const Timer = { schedule: (ms, repeats, cb) => { setTimeout(cb, Math.max(0, ms | 0)); } };
+
   const env = {
-    Request, FileManager, ListWidget, Color, Font, Size, Rect, Path, DrawContext,
+    Request, FileManager, ListWidget, Color, Font, Size, Rect, Path, DrawContext, Timer,
     config: { runsInWidget: true, widgetFamily: 'extraLarge' },
     args: { widgetParameter: null },
     Script: { setWidget: w => {}, complete: () => {} },
