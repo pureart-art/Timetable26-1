@@ -12,6 +12,9 @@
 //      허용하지 않고 refreshAfterDate는 요청일 뿐이라, 인스턴스마다 최신도가 벌어진다
 //      (덜 보는 다음 주 위젯이 예산에서 밀림). 탭이 유일한 즉시 갱신 수단.
 //      PWA는 Scriptable 안에서 뜬 미리보기를 다시 탭하면 열린다.
+// v16: 파라미터에 '2주간'을 넣으면 그 위젯만 이번 주+다음 주를 위아래로 그린다(대형·초대형).
+//      1단계(C열 탐색)는 공유하고 주 블록만 2개 병렬로 받아 실행 예산은 그대로.
+//      두 주가 같은 fetch에서 나오므로 두 위젯을 따로 두던 때의 최신도 차이가 사라진다.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -45,27 +48,35 @@ function loadKeywords() {
   return [];
 }
 
-/* ===== 주 이동값 =====
-   위젯 파라미터의 정수 N = 표시할 주 이동(양수=미래, 음수=과거).
-   주 선택과 캐시 키가 반드시 같은 값을 써야 하므로 최상위에서 한 번만 구한다
-   — 두 곳에서 각자 파싱하면 드리프트한다. */
-const WEEK_OFFSET = (() => {
-  const parse = v => {
-    if (v === undefined || v === null || v === '') return null;
-    const mt = String(v).match(/-?\d+/);
-    return mt ? parseInt(mt[0], 10) : null;
-  };
+/* ===== 위젯 파라미터 =====
+   원문을 한 번만 읽고, 여기서 파생되는 모든 값(주 이동·2주 보기·탭 URL·캐시 키)이
+   이 원문 하나만 보게 한다 — 여러 곳에서 각자 파싱하면 드리프트한다.
+   예: '1'=다음 주 / '-1'=지난주 / '2주간'=이번 주+다음 주 / '2주간 1'=다음 주+다다음 주 */
+const PARAM_RAW = (() => {
   try {
     if (typeof args !== 'undefined' && args) {
-      const p = parse(args.widgetParameter);
-      if (p !== null) return p;
+      if (args.widgetParameter) return String(args.widgetParameter);
       /* 위젯을 탭해 Scriptable로 들어온 실행에는 widgetParameter가 없다 —
-         탭한 위젯과 같은 주를 보여주려면 URL 쿼리(wk)로 받은 값을 써야 한다. */
-      const q = args.queryParameters ? parse(args.queryParameters.wk) : null;
-      if (q !== null) return q;
+         탭한 위젯과 같은 화면을 보여주려면 URL 쿼리(wk)로 받은 원문을 써야 한다. */
+      if (args.queryParameters && args.queryParameters.wk) return String(args.queryParameters.wk);
     }
   } catch (e) {}
-  return 0;
+  return '';
+})();
+
+/* '2주간'은 PWA의 2주 보기와 같은 용어. '2주 뒤'(=정수 2)와 헷갈리지 않도록
+   '간'까지 요구한다 — 숫자만 있는 기존 파라미터는 전부 예전 그대로 동작. */
+const TWO_WEEK_RE = /2\s*주간|두\s*주간|2w\b/i;
+const TWO_WEEKS = TWO_WEEK_RE.test(PARAM_RAW);
+const WEEK_OFFSET = (() => {
+  const mt = PARAM_RAW.replace(TWO_WEEK_RE, ' ').match(/-?\d+/);
+  return mt ? parseInt(mt[0], 10) : 0;
+})();
+/* 2주 보기는 한 주에 캔버스 절반만 주므로 대형·초대형에서만 읽을 수 있다.
+   (widgetFamily를 못 얻는 실행은 FAM 기본값과 같게 초대형으로 본다) */
+const TWO_WEEK_OK = (() => {
+  const f = (typeof config !== 'undefined' && config) ? config.widgetFamily : null;
+  return !f || f === 'large' || f === 'extraLarge';
 })();
 
 /* 탭 목적지. 위젯에서는 '같은 스크립트 다시 실행'(=강제 새로고침),
@@ -74,7 +85,7 @@ function tapUrl() {
   try {
     if (config.runsInWidget) {
       const n = Script.name();
-      if (n) return 'scriptable:///run?scriptName=' + encodeURIComponent(n) + '&wk=' + WEEK_OFFSET;
+      if (n) return 'scriptable:///run?scriptName=' + encodeURIComponent(n) + '&wk=' + encodeURIComponent(PARAM_RAW);
     }
   } catch (e) {}
   return PWA_URL;
@@ -181,8 +192,9 @@ async function apiGetWithFallback(params) {
 }
 function isDateSerial(n) { return typeof n === 'number' && n > 20000 && n < 80000; }
 
-/* 1단계: C열(월요일 날짜)만 받아 주 헤더 행 위치들 찾기 (+파일명 버전) */
-async function findCurrentWeekRow() {
+/* 1단계: C열(월요일 날짜)만 받아 주 헤더 행 위치들 찾기 (+파일명 버전).
+   반환 picks = 그릴 주 목록(1개 또는 2주 보기의 2개) — 2주여도 이 호출은 한 번뿐. */
+async function findWeekPicks() {
   const params = 'ranges=' + encodeURIComponent(TAB + '!C1:C1000') +
     '&includeGridData=true&fields=' + encodeURIComponent('properties.title,sheets.data.rowData.values(effectiveValue.numberValue)');
   const json = await apiGetWithFallback(params);
@@ -205,15 +217,16 @@ async function findCurrentWeekRow() {
     if (Math.abs(h.monday - ex) > 1) h.monday = ex;
   });
   const ts = todaySerial();
-  let pick = headers[0];
-  for (const h of headers) if (ts >= h.monday) pick = h;          // 오늘 이전 시작 중 가장 늦은 주
-  if (ts >= pick.monday + 7) pick = headers[headers.length - 1];  // 학기 끝나면 마지막 주
+  let pi = 0;
+  for (let i = 0; i < headers.length; i++) if (ts >= headers[i].monday) pi = i;   // 오늘 이전 시작 중 가장 늦은 주
+  if (ts >= headers[pi].monday + 7) pi = headers.length - 1;                      // 학기 끝나면 마지막 주
   /* WEEK_OFFSET(위젯 파라미터) 만큼 이동 — 다음 주 위젯 + 스마트 스택 스와이프용 */
-  if (WEEK_OFFSET) {
-    const idx = Math.max(0, Math.min(headers.length - 1, headers.indexOf(pick) + WEEK_OFFSET));
-    pick = headers[idx];
-  }
-  return { row: pick.row, monday: pick.monday, ver };
+  if (WEEK_OFFSET) pi = Math.max(0, Math.min(headers.length - 1, pi + WEEK_OFFSET));
+  const picks = [headers[pi]];
+  /* 2주 보기: 다음 주가 있을 때만 함께. 학기 마지막 주엔 다음 주가 없으므로
+     한 주만 담아 아래에서 전체 크기로 그린다 — 같은 주를 두 번 그리지 않는다. */
+  if (TWO_WEEKS && pi + 1 < headers.length) picks.push(headers[pi + 1]);
+  return { picks, ver };
 }
 
 /* 2단계: 이번 주 블록 10행만 서식 포함으로 */
@@ -286,70 +299,60 @@ async function loadWeekBlock(headerRow, monday) {
 const FETCH_BUDGET_MS = 8000;
 function afterMs(ms) { return new Promise(r => Timer.schedule(ms, false, () => r(null))); }
 
-async function loadWeek() {
+async function loadWeeks() {
   const fm = FileManager.local();
-  /* 캐시는 주 이동값별로 분리 — v13까지는 한 파일을 모든 인스턴스가 공유해서
-     다음 주 위젯이 상한에 지면 이번 주 위젯이 써둔 격자를 그렸다. */
-  const cachePath = fm.joinPath(fm.cacheDirectory(), 'timetable-week-v4-' + WEEK_OFFSET + '.json');
+  /* 캐시는 파라미터 조합별로 분리 — v13까지는 한 파일을 모든 인스턴스가 공유해서
+     다음 주 위젯이 상한에 지면 이번 주 위젯이 써둔 격자를 그렸다.
+     2주 보기는 담는 내용이 달라 키에 포함해야 한다. */
+  const cachePath = fm.joinPath(fm.cacheDirectory(),
+    'timetable-week-v5-' + WEEK_OFFSET + (TWO_WEEKS ? 'x2' : '') + '.json');
   /* 캐시를 그릴 땐 어느 주인지 반드시 대조한다.
-     expectedMonday를 아는 경우(1단계 성공) 불일치 캐시는 버린다 — 틀린 주를 그리는 건 실패다.
+     expected(월요일 목록)를 아는 경우(1단계 성공) 불일치 캐시는 버린다 — 틀린 주를 그리는 건 실패다.
      1단계까지 실패해 대조 자체가 불가한 경우는 '판정 실패'로 구분해 '오프?'로 표시. */
-  const readCache = (expectedMonday) => {
+  const readCache = (expected) => {
     if (!fm.fileExists(cachePath)) return null;
-    let week = null;
-    try { week = JSON.parse(fm.readString(cachePath)); } catch (e) { return null; }
-    if (!week || typeof week.monday !== 'number' || !Array.isArray(week.cells)) return null;
-    if (expectedMonday === null) return { week, stale: 'unverified' };
-    return week.monday === expectedMonday ? { week, stale: 'verified' } : null;
+    let weeks = null;
+    try { weeks = JSON.parse(fm.readString(cachePath)); } catch (e) { return null; }
+    if (!Array.isArray(weeks) || !weeks.length) return null;
+    if (weeks.some(w => !w || typeof w.monday !== 'number' || !Array.isArray(w.cells))) return null;
+    if (expected === null) return { weeks, stale: 'unverified' };
+    return weeks.map(w => w.monday).join() === expected.join() ? { weeks, stale: 'verified' } : null;
   };
-  let hdr = null;   /* 1단계 결과 — 상한에 진 뒤 캐시를 대조하는 데 쓴다 */
+  let expected = null;   /* 1단계 결과 — 상한에 진 뒤 캐시를 대조하는 데 쓴다 */
   try {
     const fetchP = (async () => {
-      hdr = await findCurrentWeekRow();
-      const week = await loadWeekBlock(hdr.row, hdr.monday);
-      week.ver = hdr.ver;
-      return week;
+      const h = await findWeekPicks();
+      expected = h.picks.map(p => p.monday);
+      /* 주 블록은 병렬 — 2주여도 실행 예산은 1주와 거의 같게 */
+      const weeks = await Promise.all(h.picks.map(p => loadWeekBlock(p.row, p.monday)));
+      weeks.forEach(w => { w.ver = h.ver; });
+      return weeks;
     })();
     /* 상한에 져서 캐시로 넘어간 뒤 뒤늦게 도착한 결과도 다음 새로고침을 위해 캐시에 반영 */
-    fetchP.then(w => { try { fm.writeString(cachePath, JSON.stringify(w)); } catch (e) {} }, () => {});
-    const week = await Promise.race([fetchP, afterMs(FETCH_BUDGET_MS)]);
-    if (week) {
-      fm.writeString(cachePath, JSON.stringify(week));
-      return { week, stale: null };
+    fetchP.then(ws => { try { fm.writeString(cachePath, JSON.stringify(ws)); } catch (e) {} }, () => {});
+    const weeks = await Promise.race([fetchP, afterMs(FETCH_BUDGET_MS)]);
+    if (weeks) {
+      fm.writeString(cachePath, JSON.stringify(weeks));
+      return { weeks, stale: null };
     }
-    const c = readCache(hdr ? hdr.monday : null);
+    const c = readCache(expected);
     if (c) return c;
     throw new Error('네트워크가 느려 시간표를 못 받았어요. 다음 새로고침 때 다시 시도해요.');
   } catch (e) {
-    const c = readCache(hdr ? hdr.monday : null);
+    const c = readCache(expected);
     if (c) return c;
     throw e;
   }
 }
 
-/* ===== 주간 격자 렌더 (전 크기 공통) ===== */
-function buildWeekWidget(week, stale) {
-  /* 오프 = 캐시 렌더(주 대조 통과) / 오프? = 대조 불가(1단계 실패) — 같은 분기로 흘리지 않는다 */
-  const staleTag = stale === 'verified' ? '·오프' : (stale === 'unverified' ? '·오프?' : '');
-  const w = new ListWidget();
-  w.backgroundColor = new Color('#FFFFFF');
-  w.url = tapUrl();
-  w.setPadding(0, 0, 0, 0);
+/* ===== 격자 1주를 캔버스의 지정 영역 (ox,oy)~(ox+W,oy+H) 에 그림 =====
+   2주 보기가 같은 캔버스를 위아래로 나눠 쓰기 때문에 영역을 인자로 받는다.
+   좌표는 전부 PX/PY 기준 — 여기에 PAD를 직접 쓰면 아래쪽 주가 위로 겹쳐 그려진다. */
+function drawWeekGrid(ctx, week, staleTag, ox, oy, W, H) {
   const ts = todaySerial();
-
-  const FAM = {
-    small: [158, 158], medium: [338, 158], large: [338, 354], extraLarge: [715, 356],
-  }[config.widgetFamily] || [715, 356];
-  const W = FAM[0], H = FAM[1];
-  const ctx = new DrawContext();
-  ctx.size = new Size(W, H);
-  ctx.opaque = true;
-  ctx.respectScreenScale = true;
-  ctx.setFillColor(new Color('#FFFFFF'));
-  ctx.fillRect(new Rect(0, 0, W, H));
-
   const big = H >= 300;
   const PAD = 6;                        /* 모든 크기 공통 가장자리 여백 */
+  const PX = ox + PAD, PY = oy + PAD;
   const innerW = W - PAD * 2, innerH = H - PAD * 2;
   const HDR = big ? 24 : 18;
   const timeW = W >= 600 ? 56 : (W >= 300 ? 26 : 20);
@@ -359,47 +362,49 @@ function buildWeekWidget(week, stale) {
   const fHdr = Math.max(7, Math.min(12, Math.floor(HDR * 0.46)));
   const line = new Color('#CFCCC4');
 
-  const gx = c => PAD + timeW + c * dayW;
-  const gy = p => PAD + HDR + p * rowH;
+  const gx = c => PX + timeW + c * dayW;
+  const gy = p => PY + HDR + p * rowH;
   const todayD = (ts >= week.monday && ts < week.monday + 7) ? ts - week.monday : -1;
 
   for (let d = 0; d < 7; d++) {
     const isHol = d === 6 || (week.holidays && week.holidays[d]);
     const bg = isHol ? '#F7D2D2' : (d === 5 ? '#E7EEF6' : '#F1EFE8');
     ctx.setFillColor(new Color(bg));
-    ctx.fillRect(new Rect(gx(d), PAD, dayW, HDR));
+    ctx.fillRect(new Rect(gx(d), PY, dayW, HDR));
     const ymd = serialToYMD(week.monday + d);
     ctx.setTextAlignedCenter();
     ctx.setFont(Font.boldSystemFont(fHdr));
     ctx.setTextColor(new Color('#3a3a37'));
-    ctx.drawTextInRect(DAY_NAMES[d] + (dayW >= 38 ? ' ' + ymd.m + '.' + ymd.d : ''), new Rect(gx(d), PAD + (HDR - fHdr) / 2 - 1, dayW, fHdr + 4));
+    ctx.drawTextInRect(DAY_NAMES[d] + (dayW >= 38 ? ' ' + ymd.m + '.' + ymd.d : ''), new Rect(gx(d), PY + (HDR - fHdr) / 2 - 1, dayW, fHdr + 4));
   }
   ctx.setFillColor(new Color('#F1EFE8'));
-  ctx.fillRect(new Rect(PAD, PAD, timeW, HDR + 9 * rowH));
+  ctx.fillRect(new Rect(PX, PY, timeW, HDR + 9 * rowH));
   /* 코너 칸: 주차 라벨 + 시트 버전 (예: 11주 / v34) */
   {
     const f1 = big ? 9 : 7, f2 = big ? 7 : 6;
     ctx.setTextAlignedCenter();
     ctx.setFont(Font.boldSystemFont(f1));
     ctx.setTextColor(new Color('#5f5e5a'));
-    ctx.drawTextInRect((week.label || '') + staleTag, new Rect(PAD, PAD + 2, timeW, f1 + 3));
+    ctx.drawTextInRect((week.label || '') + staleTag, new Rect(PX, PY + 2, timeW, f1 + 3));
     if (week.ver) {
       ctx.setFont(Font.boldSystemFont(f2));
       ctx.setTextColor(new Color('#8a897f'));
-      ctx.drawTextInRect(week.ver, new Rect(PAD, PAD + 3 + f1 + 2, timeW, f2 + 3));
+      ctx.drawTextInRect(week.ver, new Rect(PX, PY + 3 + f1 + 2, timeW, f2 + 3));
     }
   }
   for (let p = 0; p < 9; p++) {
     ctx.setTextAlignedCenter();
     ctx.setFont(Font.boldSystemFont(Math.max(6, Math.min(10, Math.floor(rowH * 0.32)))));
     ctx.setTextColor(new Color('#5f5e5a'));
-    if (timeW >= 40) {
-      ctx.drawTextInRect(PERIODS[p].no, new Rect(PAD, gy(p) + rowH / 2 - 12, timeW, 12));
+    /* 교시+시각 2줄은 23px을 쓴다 — 행이 그보다 낮으면(2주 보기의 초대형 반쪽 등)
+       위아래 행으로 넘쳐서 교시만 그린다. 넓은 시간열 하나만 보고 판단하면 안 됨. */
+    if (timeW >= 40 && rowH >= 28) {
+      ctx.drawTextInRect(PERIODS[p].no, new Rect(PX, gy(p) + rowH / 2 - 12, timeW, 12));
       ctx.setFont(Font.systemFont(8));
       ctx.setTextColor(new Color('#8a897f'));
-      ctx.drawTextInRect(PERIODS[p].t1, new Rect(PAD, gy(p) + rowH / 2 + 1, timeW, 10));
+      ctx.drawTextInRect(PERIODS[p].t1, new Rect(PX, gy(p) + rowH / 2 + 1, timeW, 10));
     } else {
-      ctx.drawTextInRect(PERIODS[p].no === '점심' ? '점' : PERIODS[p].no, new Rect(PAD, gy(p) + rowH / 2 - 5, timeW, 11));
+      ctx.drawTextInRect(PERIODS[p].no === '점심' ? '점' : PERIODS[p].no, new Rect(PX, gy(p) + rowH / 2 - 5, timeW, 11));
     }
   }
 
@@ -457,9 +462,39 @@ function buildWeekWidget(week, stale) {
       }
     }
   }
-  strokeRectPx(PAD, PAD, timeW + 7 * dayW, HDR + 9 * rowH);
+  strokeRectPx(PX, PY, timeW + 7 * dayW, HDR + 9 * rowH);
   if (todayD >= 0) {
-    strokeRectPx(gx(todayD) + 1, PAD + 1, dayW - 2, HDR + 9 * rowH - 2, new Color('#2E75B6'), 2);
+    strokeRectPx(gx(todayD) + 1, PY + 1, dayW - 2, HDR + 9 * rowH - 2, new Color('#2E75B6'), 2);
+  }
+}
+
+/* ===== 위젯 조립: 주 1개면 전체, 2개면 위아래로 반씩 ===== */
+function buildWidget(weeks, stale) {
+  /* 오프 = 캐시 렌더(주 대조 통과) / 오프? = 대조 불가(1단계 실패) — 같은 분기로 흘리지 않는다 */
+  const staleTag = stale === 'verified' ? '·오프' : (stale === 'unverified' ? '·오프?' : '');
+  const w = new ListWidget();
+  w.backgroundColor = new Color('#FFFFFF');
+  w.url = tapUrl();
+  w.setPadding(0, 0, 0, 0);
+
+  const FAM = {
+    small: [158, 158], medium: [338, 158], large: [338, 354], extraLarge: [715, 356],
+  }[config.widgetFamily] || [715, 356];
+  const W = FAM[0], H = FAM[1];
+  const ctx = new DrawContext();
+  ctx.size = new Size(W, H);
+  ctx.opaque = true;
+  ctx.respectScreenScale = true;
+  ctx.setFillColor(new Color('#FFFFFF'));
+  ctx.fillRect(new Rect(0, 0, W, H));
+
+  if (weeks.length >= 2) {
+    const half = Math.floor(H / 2);
+    drawWeekGrid(ctx, weeks[0], staleTag, 0, 0, W, half);
+    drawWeekGrid(ctx, weeks[1], staleTag, 0, half, W, H - half);
+  } else {
+    /* 2주 보기를 켰어도 학기 마지막 주면 다음 주가 없다 — 그 한 주를 전체 크기로 */
+    drawWeekGrid(ctx, weeks[0], staleTag, 0, 0, W, H);
   }
 
   /* contain 배치: 기기마다 위젯 실제 크기가 달라도 잘리지 않음 */
@@ -470,13 +505,28 @@ function buildWeekWidget(week, stale) {
   return w;
 }
 
+/* 안내 화면 — 조용히 한 주만 그려서 '2주간이 안 먹네?'로 헷갈리게 두지 않는다 */
+function noticeWidget(msg) {
+  const w = new ListWidget();
+  w.backgroundColor = new Color('#FFFFFF');
+  w.url = tapUrl();
+  const t = w.addText(msg);
+  t.font = Font.systemFont(12);
+  t.textColor = new Color('#8a5a00');
+  return w;
+}
+
 /* ===== 메인 ===== */
 async function main() {
   HL_KEYWORDS = loadKeywords();
   let widget;
   try {
-    const { week, stale } = await loadWeek();
-    widget = buildWeekWidget(week, stale);
+    if (TWO_WEEKS && !TWO_WEEK_OK) {
+      widget = noticeWidget('2주 보기는 대형·초대형 위젯에서만 돼요.\n위젯 크기를 바꾸거나, Parameter에서 「2주간」을 지워주세요.');
+    } else {
+      const { weeks, stale } = await loadWeeks();
+      widget = buildWidget(weeks, stale);
+    }
   } catch (e) {
     widget = new ListWidget();
     widget.backgroundColor = new Color('#FFFFFF');
