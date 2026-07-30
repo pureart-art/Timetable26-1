@@ -18,6 +18,8 @@
 // v17: '2주간가로' = 좌우 배치(초대형 전용). 반쪽이 357×356이라 대형 위젯보다 넓고,
 //      행 높이도 35px로 위아래 배치(16px)보다 여유롭다. 데이터는 배치와 무관하므로
 //      캐시는 세로/가로가 같은 파일을 공유한다.
+// v18: 배치를 반드시 밝히게 — '2주간' 단독은 폐지하고 '2주간가로'/'2주간세로'만 받는다.
+//      배치가 없거나 둘 다 적혀 있으면 임의로 고르지 않고 무엇을 넣어야 하는지 안내한다.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -54,8 +56,8 @@ function loadKeywords() {
 /* ===== 위젯 파라미터 =====
    원문을 한 번만 읽고, 여기서 파생되는 모든 값(주 이동·2주 보기·탭 URL·캐시 키)이
    이 원문 하나만 보게 한다 — 여러 곳에서 각자 파싱하면 드리프트한다.
-   예: '1'=다음 주 / '-1'=지난주 / '2주간'=이번 주+다음 주(위아래)
-       '2주간가로'=좌우 배치(초대형 전용) / '2주간 1'=다음 주+다다음 주 */
+   예: '1'=다음 주 / '-1'=지난주 / '2주간가로'=이번 주+다음 주를 좌우(초대형 전용)
+       '2주간세로'=위아래(대형·초대형) / '2주간가로 1'=다음 주+다다음 주 */
 const PARAM_RAW = (() => {
   try {
     if (typeof args !== 'undefined' && args) {
@@ -71,22 +73,32 @@ const PARAM_RAW = (() => {
 /* '2주간'은 PWA의 2주 보기와 같은 용어. '2주 뒤'(=정수 2)와 헷갈리지 않도록
    '간'까지 요구한다 — 숫자만 있는 기존 파라미터는 전부 예전 그대로 동작. */
 const TWO_WEEK_RE = /2\s*주간|두\s*주간|2w\b/i;
-/* '가로'를 덧붙이면 위아래 대신 좌우로. 초대형(715×356)을 반으로 자르면 한 주가
-   357×356 — 대형 위젯보다 넓어서 세로 반쪽(행 높이 16px)보다 훨씬 잘 읽힌다. */
+/* 배치를 반드시 밝히게 한다 — '2주간'만으로는 어느 쪽인지 정할 수 없다.
+   가로: 초대형(715×356)을 반으로 자르면 한 주가 357×356 — 대형 위젯보다 넓어
+   글씨가 가장 크다. 세로: 반쪽 높이 178px(행 16px)이지만 대형에서도 된다. */
 const HORIZ_RE = /가로/;
+const VERT_RE = /세로/;
 const TWO_WEEKS = TWO_WEEK_RE.test(PARAM_RAW);
-const TWO_WEEKS_HORIZ = TWO_WEEKS && HORIZ_RE.test(PARAM_RAW);
+/* 'horiz' | 'vert' | null. null = 2주간인데 배치가 없거나 둘 다 적힘
+   → 조용히 한쪽을 고르지 않고 무엇을 입력해야 하는지 알린다. */
+const LAYOUT = (() => {
+  if (!TWO_WEEKS) return null;
+  const h = HORIZ_RE.test(PARAM_RAW), v = VERT_RE.test(PARAM_RAW);
+  if (h && !v) return 'horiz';
+  if (v && !h) return 'vert';
+  return null;
+})();
 const WEEK_OFFSET = (() => {
-  const mt = PARAM_RAW.replace(TWO_WEEK_RE, ' ').replace(HORIZ_RE, ' ').match(/-?\d+/);
+  const mt = PARAM_RAW.replace(TWO_WEEK_RE, ' ').replace(HORIZ_RE, ' ').replace(VERT_RE, ' ').match(/-?\d+/);
   return mt ? parseInt(mt[0], 10) : 0;
 })();
 /* 배치마다 한 주가 쓰는 변이 달라 최소 크기도 다르다:
-   가로는 폭 절반이라 초대형에서만, 위아래는 높이 절반이라 대형부터.
+   가로는 폭 절반이라 초대형에서만, 세로는 높이 절반이라 대형부터.
    (widgetFamily를 못 얻는 실행은 FAM 기본값과 같게 초대형으로 본다) */
 const TWO_WEEK_OK = (() => {
   const f = (typeof config !== 'undefined' && config) ? config.widgetFamily : null;
   if (!f || f === 'extraLarge') return true;
-  return f === 'large' && !TWO_WEEKS_HORIZ;
+  return f === 'large' && LAYOUT === 'vert';
 })();
 
 /* 탭 목적지. 위젯에서는 '같은 스크립트 다시 실행'(=강제 새로고침),
@@ -500,7 +512,7 @@ function buildWidget(weeks, stale) {
   ctx.setFillColor(new Color('#FFFFFF'));
   ctx.fillRect(new Rect(0, 0, W, H));
 
-  if (weeks.length >= 2 && TWO_WEEKS_HORIZ) {
+  if (weeks.length >= 2 && LAYOUT === 'horiz') {
     const halfW = Math.floor(W / 2);
     drawWeekGrid(ctx, weeks[0], staleTag, 0, 0, halfW, H);
     drawWeekGrid(ctx, weeks[1], staleTag, halfW, 0, W - halfW, H);
@@ -537,10 +549,12 @@ async function main() {
   HL_KEYWORDS = loadKeywords();
   let widget;
   try {
-    if (TWO_WEEKS && !TWO_WEEK_OK) {
-      widget = noticeWidget(TWO_WEEKS_HORIZ
-        ? '「2주간가로」는 초대형 위젯에서만 돼요.\n초대형으로 바꾸거나, 「가로」를 빼면 대형에서도 위아래로 볼 수 있어요.'
-        : '2주 보기는 대형·초대형 위젯에서만 돼요.\n위젯 크기를 바꾸거나, Parameter에서 「2주간」을 지워주세요.');
+    if (TWO_WEEKS && !LAYOUT) {
+      widget = noticeWidget('두 주를 보려면 배치도 적어주세요.\n「2주간가로」 = 좌우 (초대형)\n「2주간세로」 = 위아래 (대형·초대형)');
+    } else if (TWO_WEEKS && !TWO_WEEK_OK) {
+      widget = noticeWidget(LAYOUT === 'horiz'
+        ? '「2주간가로」는 초대형 위젯에서만 돼요.\n초대형으로 바꾸거나, 대형이면 「2주간세로」를 써주세요.'
+        : '「2주간세로」는 대형·초대형 위젯에서만 돼요.\n위젯을 더 큰 크기로 바꿔주세요.');
     } else {
       const { weeks, stale } = await loadWeeks();
       widget = buildWidget(weeks, stale);
