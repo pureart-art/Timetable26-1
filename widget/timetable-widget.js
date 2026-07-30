@@ -6,6 +6,12 @@
 // v12: 모든 크기에서 과목명 1줄(클립) + 바로 아래 교수명(과명 제거, 예: (추일한)).
 // v13: 느린 네트워크에서 Scriptable 강제 종료(빨간 "Received timeout...") 방지 —
 //      요청 타임아웃 15→6초 + 데이터 로딩 총 8초 상한, 초과 시 캐시로 즉시 렌더('·오프').
+// v14: 캐시를 주 이동값(offset)별로 분리 + 읽을 때 monday 대조. v13까지는 캐시 파일이
+//      인스턴스 공유라, 다음 주 위젯이 느린 네트워크로 상한에 지면 이번 주 격자를 그렸다.
+// v15: 위젯 탭 = 강제 새로고침(Scriptable 재실행). iOS는 위젯 안에서 '지금 새로고침'을
+//      허용하지 않고 refreshAfterDate는 요청일 뿐이라, 인스턴스마다 최신도가 벌어진다
+//      (덜 보는 다음 주 위젯이 예산에서 밀림). 탭이 유일한 즉시 갱신 수단.
+//      PWA는 Scriptable 안에서 뜬 미리보기를 다시 탭하면 열린다.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -37,6 +43,41 @@ function loadKeywords() {
     } catch (e) {}
   }
   return [];
+}
+
+/* ===== 주 이동값 =====
+   위젯 파라미터의 정수 N = 표시할 주 이동(양수=미래, 음수=과거).
+   주 선택과 캐시 키가 반드시 같은 값을 써야 하므로 최상위에서 한 번만 구한다
+   — 두 곳에서 각자 파싱하면 드리프트한다. */
+const WEEK_OFFSET = (() => {
+  const parse = v => {
+    if (v === undefined || v === null || v === '') return null;
+    const mt = String(v).match(/-?\d+/);
+    return mt ? parseInt(mt[0], 10) : null;
+  };
+  try {
+    if (typeof args !== 'undefined' && args) {
+      const p = parse(args.widgetParameter);
+      if (p !== null) return p;
+      /* 위젯을 탭해 Scriptable로 들어온 실행에는 widgetParameter가 없다 —
+         탭한 위젯과 같은 주를 보여주려면 URL 쿼리(wk)로 받은 값을 써야 한다. */
+      const q = args.queryParameters ? parse(args.queryParameters.wk) : null;
+      if (q !== null) return q;
+    }
+  } catch (e) {}
+  return 0;
+})();
+
+/* 탭 목적지. 위젯에서는 '같은 스크립트 다시 실행'(=강제 새로고침),
+   Scriptable 안 미리보기에서는 PWA. 스크립트 이름을 못 얻으면 PWA로 폴백. */
+function tapUrl() {
+  try {
+    if (config.runsInWidget) {
+      const n = Script.name();
+      if (n) return 'scriptable:///run?scriptName=' + encodeURIComponent(n) + '&wk=' + WEEK_OFFSET;
+    }
+  } catch (e) {}
+  return PWA_URL;
 }
 
 const PERIODS = [
@@ -167,14 +208,9 @@ async function findCurrentWeekRow() {
   let pick = headers[0];
   for (const h of headers) if (ts >= h.monday) pick = h;          // 오늘 이전 시작 중 가장 늦은 주
   if (ts >= pick.monday + 7) pick = headers[headers.length - 1];  // 학기 끝나면 마지막 주
-  /* 위젯 파라미터에 정수 N → 현재 주에서 N주 뒤 (다음 주 위젯 + 스마트 스택 스와이프용) */
-  let offset = 0;
-  if (typeof args !== 'undefined' && args.widgetParameter) {
-    const mt = String(args.widgetParameter).match(/-?\d+/);
-    if (mt) offset = parseInt(mt[0], 10);
-  }
-  if (offset) {
-    const idx = Math.max(0, Math.min(headers.length - 1, headers.indexOf(pick) + offset));
+  /* WEEK_OFFSET(위젯 파라미터) 만큼 이동 — 다음 주 위젯 + 스마트 스택 스와이프용 */
+  if (WEEK_OFFSET) {
+    const idx = Math.max(0, Math.min(headers.length - 1, headers.indexOf(pick) + WEEK_OFFSET));
     pick = headers[idx];
   }
   return { row: pick.row, monday: pick.monday, ver };
@@ -252,12 +288,24 @@ function afterMs(ms) { return new Promise(r => Timer.schedule(ms, false, () => r
 
 async function loadWeek() {
   const fm = FileManager.local();
-  const cachePath = fm.joinPath(fm.cacheDirectory(), 'timetable-week-v3.json');
-  const readCache = () =>
-    fm.fileExists(cachePath) ? { week: JSON.parse(fm.readString(cachePath)), fromCache: true } : null;
+  /* 캐시는 주 이동값별로 분리 — v13까지는 한 파일을 모든 인스턴스가 공유해서
+     다음 주 위젯이 상한에 지면 이번 주 위젯이 써둔 격자를 그렸다. */
+  const cachePath = fm.joinPath(fm.cacheDirectory(), 'timetable-week-v4-' + WEEK_OFFSET + '.json');
+  /* 캐시를 그릴 땐 어느 주인지 반드시 대조한다.
+     expectedMonday를 아는 경우(1단계 성공) 불일치 캐시는 버린다 — 틀린 주를 그리는 건 실패다.
+     1단계까지 실패해 대조 자체가 불가한 경우는 '판정 실패'로 구분해 '오프?'로 표시. */
+  const readCache = (expectedMonday) => {
+    if (!fm.fileExists(cachePath)) return null;
+    let week = null;
+    try { week = JSON.parse(fm.readString(cachePath)); } catch (e) { return null; }
+    if (!week || typeof week.monday !== 'number' || !Array.isArray(week.cells)) return null;
+    if (expectedMonday === null) return { week, stale: 'unverified' };
+    return week.monday === expectedMonday ? { week, stale: 'verified' } : null;
+  };
+  let hdr = null;   /* 1단계 결과 — 상한에 진 뒤 캐시를 대조하는 데 쓴다 */
   try {
     const fetchP = (async () => {
-      const hdr = await findCurrentWeekRow();
+      hdr = await findCurrentWeekRow();
       const week = await loadWeekBlock(hdr.row, hdr.monday);
       week.ver = hdr.ver;
       return week;
@@ -267,23 +315,25 @@ async function loadWeek() {
     const week = await Promise.race([fetchP, afterMs(FETCH_BUDGET_MS)]);
     if (week) {
       fm.writeString(cachePath, JSON.stringify(week));
-      return { week, fromCache: false };
+      return { week, stale: null };
     }
-    const c = readCache();
+    const c = readCache(hdr ? hdr.monday : null);
     if (c) return c;
     throw new Error('네트워크가 느려 시간표를 못 받았어요. 다음 새로고침 때 다시 시도해요.');
   } catch (e) {
-    const c = readCache();
+    const c = readCache(hdr ? hdr.monday : null);
     if (c) return c;
     throw e;
   }
 }
 
 /* ===== 주간 격자 렌더 (전 크기 공통) ===== */
-function buildWeekWidget(week, fromCache) {
+function buildWeekWidget(week, stale) {
+  /* 오프 = 캐시 렌더(주 대조 통과) / 오프? = 대조 불가(1단계 실패) — 같은 분기로 흘리지 않는다 */
+  const staleTag = stale === 'verified' ? '·오프' : (stale === 'unverified' ? '·오프?' : '');
   const w = new ListWidget();
   w.backgroundColor = new Color('#FFFFFF');
-  w.url = PWA_URL;
+  w.url = tapUrl();
   w.setPadding(0, 0, 0, 0);
   const ts = todaySerial();
 
@@ -332,7 +382,7 @@ function buildWeekWidget(week, fromCache) {
     ctx.setTextAlignedCenter();
     ctx.setFont(Font.boldSystemFont(f1));
     ctx.setTextColor(new Color('#5f5e5a'));
-    ctx.drawTextInRect((week.label || '') + (fromCache ? '·오프' : ''), new Rect(PAD, PAD + 2, timeW, f1 + 3));
+    ctx.drawTextInRect((week.label || '') + staleTag, new Rect(PAD, PAD + 2, timeW, f1 + 3));
     if (week.ver) {
       ctx.setFont(Font.boldSystemFont(f2));
       ctx.setTextColor(new Color('#8a897f'));
@@ -425,15 +475,15 @@ async function main() {
   HL_KEYWORDS = loadKeywords();
   let widget;
   try {
-    const { week, fromCache } = await loadWeek();
-    widget = buildWeekWidget(week, fromCache);
+    const { week, stale } = await loadWeek();
+    widget = buildWeekWidget(week, stale);
   } catch (e) {
     widget = new ListWidget();
     widget.backgroundColor = new Color('#FFFFFF');
     const t = widget.addText('시간표를 불러오지 못했어요\n' + e.message);
     t.font = Font.systemFont(12);
     t.textColor = new Color('#C04848');
-    widget.url = PWA_URL;
+    widget.url = tapUrl();   /* 실패했을 때야말로 탭해서 즉시 재시도하고 싶다 */
   }
   widget.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000);
   if (config.runsInWidget) {

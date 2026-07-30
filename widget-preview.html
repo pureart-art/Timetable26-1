@@ -114,8 +114,10 @@ canvas{width:715px;max-width:100%;height:auto}
   const env = {
     Request, FileManager, ListWidget, Color, Font, Size, Rect, Path, DrawContext, Timer,
     config: { runsInWidget: true, widgetFamily: 'extraLarge' },
-    args: { widgetParameter: null },
-    Script: { setWidget: w => {}, complete: () => {} },
+    args: { widgetParameter: null, queryParameters: {} },
+    /* v15의 tapUrl()이 Script.name()으로 재실행 URL을 만든다 — 없으면 PWA로 조용히 폴백해
+       미리보기가 실기기와 달라진다. 실기기 스크립트 이름과 같은 값을 준다. */
+    Script: { setWidget: w => {}, complete: () => {}, name: () => '시간표' },
   };
   try {
     const code = await (await fetch('widget/timetable-widget.js?t=' + Math.floor(Date.now() / 600000))).text();
