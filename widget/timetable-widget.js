@@ -20,6 +20,11 @@
 //      캐시는 세로/가로가 같은 파일을 공유한다.
 // v18: 배치를 반드시 밝히게 — '2주간' 단독은 폐지하고 '2주간가로'/'2주간세로'만 받는다.
 //      배치가 없거나 둘 다 적혀 있으면 임의로 고르지 않고 무엇을 넣어야 하는지 안내한다.
+// v19: 탭 = PWA(사파리)로 통일. v15의 탭=강제 새로고침을 되돌린다 — 갱신보다 '시간표를 열고
+//      싶다'가 훨씬 잦은 동작이었다. 위젯 그림은 refreshAfterDate(30분)와 iOS 예산에만
+//      기대게 되지만, 탭해서 도착하는 PWA는 5분 폴링이라 최신도는 거기서 회복된다.
+//      배지만 새로고침으로 남기는 안은 불가 — 격자가 addImage 한 장이라 이미지 안 영역에는
+//      요소별 url을 못 붙이고, 쪼개면 잘림을 막는 contain 스케일 불변식이 깨진다.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -100,18 +105,6 @@ const TWO_WEEK_OK = (() => {
   if (!f || f === 'extraLarge') return true;
   return f === 'large' && LAYOUT === 'vert';
 })();
-
-/* 탭 목적지. 위젯에서는 '같은 스크립트 다시 실행'(=강제 새로고침),
-   Scriptable 안 미리보기에서는 PWA. 스크립트 이름을 못 얻으면 PWA로 폴백. */
-function tapUrl() {
-  try {
-    if (config.runsInWidget) {
-      const n = Script.name();
-      if (n) return 'scriptable:///run?scriptName=' + encodeURIComponent(n) + '&wk=' + encodeURIComponent(PARAM_RAW);
-    }
-  } catch (e) {}
-  return PWA_URL;
-}
 
 const PERIODS = [
   { no: '1', t1: '09:00' }, { no: '2', t1: '10:00' }, { no: '3', t1: '11:00' }, { no: '4', t1: '12:00' },
@@ -498,7 +491,7 @@ function buildWidget(weeks, stale) {
   const staleTag = stale === 'verified' ? '·오프' : (stale === 'unverified' ? '·오프?' : '');
   const w = new ListWidget();
   w.backgroundColor = new Color('#FFFFFF');
-  w.url = tapUrl();
+  w.url = PWA_URL;              /* 탭 = 사파리로 시간표 앱 (v19) */
   w.setPadding(0, 0, 0, 0);
 
   const FAM = {
@@ -537,7 +530,7 @@ function buildWidget(weeks, stale) {
 function noticeWidget(msg) {
   const w = new ListWidget();
   w.backgroundColor = new Color('#FFFFFF');
-  w.url = tapUrl();
+  w.url = PWA_URL;
   const t = w.addText(msg);
   t.font = Font.systemFont(12);
   t.textColor = new Color('#8a5a00');
@@ -565,7 +558,7 @@ async function main() {
     const t = widget.addText('시간표를 불러오지 못했어요\n' + e.message);
     t.font = Font.systemFont(12);
     t.textColor = new Color('#C04848');
-    widget.url = tapUrl();   /* 실패했을 때야말로 탭해서 즉시 재시도하고 싶다 */
+    widget.url = PWA_URL;    /* 위젯이 못 불러왔을 때도 탭하면 라이브 앱에서는 볼 수 있다 */
   }
   widget.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000);
   if (config.runsInWidget) {
