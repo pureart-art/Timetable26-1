@@ -2,7 +2,7 @@
 
 - 날짜: 2026-08-12
 - 대상: 시간표 PWA (`C:\Users\wbnuj\timetable-pwa`, 배포 `pureart-art/Timetable26-1`)
-- 상태: 승인 대기
+- 상태: **배포 완료 (2026-08-12, commit 9d1933e)**
 
 ## 배경 / 문제
 
@@ -217,3 +217,42 @@ GET /v4/spreadsheets/{ID}/values/공지!A2:C100?key={KEY}
 | 공지 탭에 개인정보가 실수로 들어감 | 시트 전체가 공개임을 전제로 작성 규칙 명시, Claude 초안 → GY 검수 |
 | 학기 경계를 CONFIG에 하드코딩 | 정본 한 곳(배열), 다음 학기엔 한 줄 추가. 시트에서 유추하지 않아 조용한 드리프트가 없음 |
 | 라벨 폴백 제거로 빈 제목이 노출 | 빈 라벨 4건이 `미정`으로 채워져 현재 0건. 폴백이 있을 때보다 오류가 눈에 띄는 방향 |
+
+---
+
+## 구현 중 드러난 것 (2026-08-12, 배포 후 기록)
+
+설계 당시 몰랐고 리뷰에서 잡힌 것들. 다음 학기 작업 때 같은 함정을 피하려고 남긴다.
+
+### `data/snapshot.js`는 라이브 시트와 **다른 갱신 주기의 두 번째 사본**이다
+
+"라이브 시트에 빈 라벨 0건"을 확인하고 빈 라벨 문제를 잠복으로 판단했는데, 번들 스냅샷에는 빈 라벨 4건이 그대로 있었다. 스냅샷은 **첫 화면과 오프라인의 유일한 소스**이고 Action이 자기 주기로 갱신한다. **시트 상태로 앱 동작을 판단하면 안 되고, 스냅샷도 같이 봐야 한다.**
+
+### `values.get`은 `FORMATTED_VALUE`가 기본이다
+
+명시하지 않으면 날짜가 표시 문자열로 온다. 시트 열 서식이 풀리면 `2026-09-01`이 `2026. 9. 1`로 오고, `'.'` > `'-'`이라 그 값이 모든 ISO 날짜를 이겨 `tt_notice_seen`이 된다. 그러면 **이후 진짜 새 공지에 빨간 점이 영영 안 뜬다.** `&valueRenderOption=UNFORMATTED_VALUE`를 반드시 붙일 것.
+
+### `bindUI()`는 `main()`의 첫 문장이라 첫 렌더보다 먼저 돈다
+
+`'use strict'`에서 미정의 전역 호출은 `ReferenceError`이고, `main()`에 `.catch()`가 없으면 시간표가 아예 안 뜬다. **선택적 모듈(notices.js)의 함수는 호출부에서 `typeof` 가드**를 걸어야 파일 경계가 실제 격리가 된다. 함수 안쪽만 가드하면 소용없다 — 위험한 건 호출부다.
+
+### 검증 하니스는 자기가 건드린 상태를 되돌려야 한다
+
+`checkTitle`(`state`), `checkNoticeData`·`checkNoticeUI`(`tt_notice_seen`, `noticeExpanded`)에서 같은 부류의 누락이 세 번 나왔다. 특히 `tt_notice_seen`은 실배포 페이지에서 하니스를 돌리면 **진짜 공지를 '이미 읽음'으로 만든다.**
+
+### 스크린샷 도구가 이 환경에서 안 된다
+
+`computer{action:"screenshot"}`이 "Browser pane is not displayed"로 실패한다. 대신 `getBoundingClientRect()`·`document.body.scrollWidth > innerWidth`·`getComputedStyle()` 실측으로 대체했고, 그게 "가로 넘침 없음" 같은 판정엔 오히려 더 확실하다.
+
+## 후속 과제 (의도적으로 미룬 것)
+
+배포를 막을 사안이 아니라고 판단해 남겨둔 것들. 급하지 않다.
+
+| 항목 | 내용 |
+|---|---|
+| 하니스 `try/finally` | `checkTitle`의 빈 라벨 블록이 `render()` 도중 던지면 합성 주가 `state.weeks`에 남는다. 오늘 도달 불가, 개발용 하니스 한정 |
+| 어서션 공백 2건 | `noticeDate`의 로케일 정규식과 `readNoticeCache`의 항목 필터에 전용 어서션이 없다 — 정적 추적으로만 검증됨 |
+| `extract.ps1` 가드 | `xl/worksheets/sheet1.xml` 하드코딩. `공지` 탭을 맨 앞으로 끌면 **`시간표`라는 제목에 공지 내용이 담긴 스냅샷**을 Action이 조용히 커밋한다. `xl/workbook.xml`의 첫 시트 이름이 `시간표`가 아니면 `throw` 하는 한 줄이면 막힌다 |
+| 위젯 학기 표시 | 위젯은 `1주`만 표시해 26-1 1주와 26-2 1주가 구분되지 않는다 (GY 결정으로 이번엔 제외) |
+| 접근성 | `#btnMenu`에 `aria-expanded`/`aria-controls` 없음, `#ntcDot`에 접근성 이름 없어 안읽음 신호가 시각 전용 |
+| 공지 폴링 소소 | `refreshNotices`에 in-flight 가드 없음(느린 실패가 빠른 성공을 덮을 수 있음), `no-tab`이 `noticeLastOk`를 안 세워 매 포그라운드 복귀마다 재요청 |
