@@ -1472,9 +1472,9 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 Run:
 ```bash
-cd /c/Users/wbnuj/timetable-pwa && grep -c "⚙" guide.html ; grep -rn "btnHl" . --include=*.html --include=*.js --exclude-dir=.git --exclude-dir=docs ; echo "done"
+cd /c/Users/wbnuj/timetable-pwa && grep -c "⚙" guide.html ; grep -rn "btnHl" . --include=*.html --include=*.js --exclude-dir=.git --exclude-dir=docs --exclude-dir=.superpowers ; echo "done"
 ```
-Expected: `0`, 그리고 `btnHl` 매치 없음
+Expected: `⚙`는 `0`. `btnHl`은 **`tools/verify.js`의 두 줄만** 나와야 한다 — `checkMenu()`의 `!$$('btnHl')` 어서션은 "옛 버튼이 사라졌는지" 확인하는 검증 코드 그 자체라 남아 있는 게 맞다. `app.js`·`index.html`·`guide.html`에서 나오면 그건 진짜 잔재다.
 
 - [ ] **Step 5: 전체 검증 재실행**
 
