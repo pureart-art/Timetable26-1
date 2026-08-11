@@ -236,6 +236,10 @@ function checkNoticeUI() {
      최상위 function 선언은 전역 객체의 쓰기 가능한 속성이라 이 교체가 실제로 먹는다. */
   const realRefresh = window.refreshNotices;
   window.refreshNotices = async () => {};
+  /* 이 검증은 openNotices()를 실제로 불러 읽음 기록과 접힘 상태를 바꾼다 — 둘 다 되돌린다.
+     checkNoticeData에서 이미 한 번 물린 것과 같은 부류다. */
+  let savedSeen = null;
+  try { savedSeen = localStorage.getItem('tt_notice_seen'); localStorage.removeItem('tt_notice_seen'); } catch (e) {}
   const setState = (status, items, at) => {
     noticeState.status = status; noticeState.items = items; noticeState.at = at || null;
     renderNoticePanel(); renderNoticeDot();
@@ -254,8 +258,7 @@ function checkNoticeUI() {
   out.push({ name: '공지UI · 빈 공지와 탭 없음은 "없어요"', pass: emptyMsg && noTabMsg, detail: 'empty=' + emptyMsg + ' noTab=' + noTabMsg });
   out.push({ name: '공지UI · 로드 실패는 "불러오지 못했어요"', pass: errMsg, detail: text().slice(0, 40) });
 
-  /* 실패 상태에서는 점이 뜨지 않는다 */
-  localStorage.removeItem('tt_notice_seen');
+  /* 실패 상태에서는 점이 뜨지 않는다 (tt_notice_seen은 위에서 이미 비워 둠) */
   setState('error', []);
   out.push({ name: '공지UI · 실패 시 빨간 점이 안 뜬다', pass: $$('ntcDot').hidden && $$('btnMenuDot').hidden, detail: 'ntcDot=' + $$('ntcDot').hidden + ' btnDot=' + $$('btnMenuDot').hidden });
 
@@ -295,6 +298,11 @@ function checkNoticeUI() {
   });
 
   window.refreshNotices = realRefresh;
+  noticeExpanded = false;              /* '더 보기'를 눌렀던 것을 되돌린다 */
+  try {
+    if (savedSeen === null) localStorage.removeItem('tt_notice_seen');
+    else localStorage.setItem('tt_notice_seen', savedSeen);
+  } catch (e) {}
   setState(save.status, save.items, save.at);
   return out;
 }

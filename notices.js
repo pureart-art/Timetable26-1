@@ -143,6 +143,9 @@ function noticeStatusMessage() {
     case 'loading': return '공지를 불러오는 중이에요…';
     case 'empty':
     case 'no-tab':  return '아직 공지가 없어요.';
+    /* stale이 여기까지 오는 건 캐시가 '0건'일 때뿐이다(항목이 있으면 목록이 그려진다).
+       아래 '마지막 확인'이 함께 붙어 "언제 기준으로 0건인지"가 드러난다. */
+    case 'stale':   return '아직 공지가 없어요.';
     case 'error':   return '공지를 불러오지 못했어요.\n인터넷 연결을 확인하고 다시 열어보세요.';
     default:        return '';
   }
@@ -158,6 +161,7 @@ function renderNoticePanel() {
     msg.className = 'ntcmsg';
     msg.textContent = noticeStatusMessage();
     body.appendChild(msg);
+    appendNoticeStamp(body);   /* 0건일 때도 "언제 기준 0건인지"를 붙인다 */
     return;
   }
 
@@ -193,14 +197,18 @@ function renderNoticePanel() {
     body.appendChild(more);
   }
 
-  /* 캐시를 보여주는 중이면 언제 확인한 것인지 밝힌다 */
-  if (noticeState.status === 'stale' && noticeState.at) {
-    const at = document.createElement('div');
-    at.className = 'ntcmsg';
-    at.textContent = '마지막 확인 ' +
-      noticeState.at.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' });
-    body.appendChild(at);
-  }
+  appendNoticeStamp(body);
+}
+
+/* 캐시를 보여주는 중이면 언제 확인한 것인지 밝힌다. 목록이 있든 0건이든 똑같이 붙는다 —
+   "못 읽어서 옛 걸 보여주는 중"이라는 사실이 두 경우 모두에서 드러나야 한다. */
+function appendNoticeStamp(body) {
+  if (noticeState.status !== 'stale' || !noticeState.at) return;
+  const at = document.createElement('div');
+  at.className = 'ntcmsg';
+  at.textContent = '마지막 확인 ' +
+    noticeState.at.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' });
+  body.appendChild(at);
 }
 
 function renderNoticeDot() {
@@ -211,10 +219,15 @@ function renderNoticeDot() {
   if (b) b.hidden = !unread;
 }
 
+/* DOM 조회는 전부 가드한다. bindNotices()는 main()의 첫 문장인 bindUI()에서 불리므로,
+   여기서 던지면 시간표가 그려지기도 전에 앱 전체가 죽는다 — "공지 실패가 시간표를 막지
+   않는다"는 이 파일의 존재 이유가 바로 이 지점에서 깨진다. */
 function openNotices() {
+  const pop = document.getElementById('ntcpop');
+  if (!pop) return;
   noticeExpanded = false;
   renderNoticePanel();
-  document.getElementById('ntcpop').hidden = false;
+  pop.hidden = false;
   markNoticesSeen(noticeState.items);
   renderNoticeDot();
   refreshNotices(false);   /* 열 때 갱신 시도 — 30분 스로틀에 걸리면 조용히 넘어간다 */
@@ -222,6 +235,8 @@ function openNotices() {
 
 function bindNotices() {
   const pop = document.getElementById('ntcpop');
-  document.getElementById('ntcClose').addEventListener('click', () => { pop.hidden = true; });
+  const close = document.getElementById('ntcClose');
+  if (!pop || !close) return;
+  close.addEventListener('click', () => { pop.hidden = true; });
   pop.addEventListener('click', e => { if (e.target === pop) pop.hidden = true; });
 }
