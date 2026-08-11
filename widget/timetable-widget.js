@@ -229,7 +229,8 @@ async function findWeekPicks() {
   const base = bases[Math.floor(bases.length / 2)];
   headers.forEach((h, i) => {
     const ex = base + 7 * i;
-    if (Math.abs(h.monday - ex) > 1) h.monday = ex;
+    /* 시트 날짜가 이미 월요일(serial % 7 === 2)이면 신뢰 — 방학 등 주 공백 허용 */
+    if (h.monday % 7 !== 2 && Math.abs(h.monday - ex) > 1) h.monday = ex;
   });
   const ts = todaySerial();
   let pi = 0;

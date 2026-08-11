@@ -65,6 +65,7 @@ const PERIODS = [
 const DAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
 const FIRST_DAY_COL = 2; // C열
 const BLOCK_ROWS = 10;   // 헤더 1 + 교시 9
+const MONDAY_MOD = 2;    // 구글 시트 시리얼: serial % 7 === 2 이면 월요일 (46111 = 2026-03-30)
 
 /* ===== 상태 ===== */
 const state = {
@@ -196,12 +197,17 @@ function parseGrid(api) {
   const baseMedian = bases.length ? bases[Math.floor(bases.length / 2)] : dateToSerial(2026, 3, 30);
   const mondays = rawMon.map((m, i) => {
     const expect = baseMedian + 7 * i;
-    return (m === null || Math.abs(m - expect) > 1) ? expect : m;
+    if (m === null) return expect;
+    /* 시트 날짜가 이미 월요일이면 그대로 신뢰 — 방학 등 주 공백이 있어도 밀리지 않는다.
+       연도 오타는 월요일이 아니므로(2025-06-15는 일요일) 아래 교정에 그대로 걸린다. */
+    if (m % 7 === MONDAY_MOD) return m;
+    return Math.abs(m - expect) > 1 ? expect : m;
   });
 
   const weeks = headers.map((h, wi) => {
     const aCell = getCell(rowData, h, 0);
-    const label = (aCell && aCell.formattedValue || '').trim() || (wi + 1) + '주';
+    /* 폴백으로 주차 번호를 지어내지 않는다 — 틀린 숫자보다 빈칸이 정직하다. */
+    const label = (aCell && aCell.formattedValue || '').trim();
     /* 헤더 날짜 글자가 빨간 요일 = 공휴일 */
     const holidays = [];
     for (let d = 0; d < 7; d++) {
