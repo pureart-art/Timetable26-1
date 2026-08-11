@@ -74,8 +74,58 @@ function checkParser() {
   return out;
 }
 
+function checkTitle() {
+  const out = [];
+  const t = () => document.getElementById('titleMain').textContent;
+  const saveView = state.view, saveIdx = state.weekIdx, saveY = state.monthY, saveM = state.monthM;
+
+  const cases = [
+    /* [weekIdx, view, 기대 제목, 설명] */
+    [20, 'week', '의학과 26-1 시간표: 21주', '1학기 마지막 주'],
+    [21, 'week', '의학과 시간표: 방학',      '방학 주는 학기명 없음'],
+    [22, 'week', '의학과 26-2 시간표: 1주',  '2학기 첫 주'],
+    [45, 'week', '의학과 시간표: 미정',      '미정 주는 학기명 없음'],
+    [22, 'day',  '의학과 26-2 시간표: 1주',  '오늘 보기도 동일'],
+    [22, 'two',  '의학과 26-2 시간표: 1주–2주', '2주간은 첫 주 기준'],
+    [21, 'two',  '의학과 시간표: 방학–1주',  '2주간 경계: 첫 주가 방학'],
+  ];
+  for (const [idx, view, want, desc] of cases) {
+    state.view = view; state.weekIdx = idx; state.dayIdx = 0;
+    render();
+    out.push({ name: '제목 · ' + desc, pass: t() === want, detail: 'got "' + t() + '" want "' + want + '"' });
+  }
+
+  /* 월간은 그 달 1일 기준 — 1일이 어느 학기 시작일보다도 앞서면 학기명이 없다.
+     이 범위에서 그런 달은 2026년 3월(1일 < 개강 3/30) 하나뿐이다. */
+  const months = [
+    [2026, 8, '의학과 26-1 시간표: 2026년 8월', '경계 달(8/1은 26-1)'],
+    [2026, 9, '의학과 26-2 시간표: 2026년 9월', '2학기 달'],
+    [2026, 4, '의학과 26-1 시간표: 2026년 4월', '1학기 달'],
+    [2026, 3, '의학과 시간표: 2026년 3월', '개강 전 달은 학기명 없음'],
+  ];
+  for (const [y, m, want, desc] of months) {
+    state.view = 'month'; state.monthY = y; state.monthM = m;
+    render();
+    out.push({ name: '제목 · 월간 ' + desc, pass: t() === want, detail: 'got "' + t() + '" want "' + want + '"' });
+  }
+
+  /* semesterOf 경계값 */
+  out.push({
+    name: 'semesterOf 경계',
+    pass: semesterOf(dateToSerial(2026, 8, 24)) === '26-1'
+       && semesterOf(dateToSerial(2026, 8, 31)) === '26-2'
+       && semesterOf(dateToSerial(2026, 3, 23)) === null,
+    detail: [dateToSerial(2026, 8, 24), dateToSerial(2026, 8, 31), dateToSerial(2026, 3, 23)]
+      .map(semesterOf).join(' / '),
+  });
+
+  state.view = saveView; state.weekIdx = saveIdx; state.monthY = saveY; state.monthM = saveM;
+  render();
+  return out;
+}
+
 function runAll() {
-  const checks = [checkParser];
+  const checks = [checkParser, checkTitle];
   let rows = [];
   for (const fn of checks) {
     try { rows = rows.concat(fn()); }

@@ -12,6 +12,12 @@ const CONFIG = {
   TAB: '시간표',
   POLL_MS: 300000,        // 라이브 재시도 주기 5분 (스냅샷이 먼저 즉시 표시되므로 자주 칠 필요 없음)
   FETCH_TIMEOUT_MS: 20000, // 라이브 요청이 멈추면 20초에 포기하고 스냅샷 유지(모바일 12MB 행 방지)
+  /* 학기 정본. 새 학기가 시작되면 여기 한 줄만 추가한다.
+     start = 그 학기 1주차의 월요일. 시트에서 유추하지 않는다. */
+  SEMESTERS: [
+    { name: '26-1', start: '2026-03-30' },
+    { name: '26-2', start: '2026-08-31' },
+  ],
 };
 
 /* ===== 개인 하이라이트 (기기별) ===== */
@@ -66,6 +72,25 @@ const DAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
 const FIRST_DAY_COL = 2; // C열
 const BLOCK_ROWS = 10;   // 헤더 1 + 교시 9
 const MONDAY_MOD = 2;    // 구글 시트 시리얼: serial % 7 === 2 이면 월요일 (46111 = 2026-03-30)
+
+/* ===== 학기 · 제목 ===== */
+function semesterOf(monday) {
+  let name = null;
+  for (const s of CONFIG.SEMESTERS) {
+    const p = s.start.split('-');
+    if (monday >= dateToSerial(+p[0], +p[1], +p[2])) name = s.name;
+  }
+  return name;
+}
+/* 주차 라벨이 'N주' 꼴일 때만 학기명을 붙인다.
+   방학·미정 주는 어느 학기로도 부를 수 없으므로 학기명을 생략한다. */
+function weekSemester(w) {
+  return (w && /^\d+\s*주$/.test(w.label)) ? semesterOf(w.monday) : null;
+}
+function setTitle(label, semName) {
+  $('titleMain').textContent =
+    '의학과 ' + (semName ? semName + ' ' : '') + '시간표' + (label ? ': ' + label : '');
+}
 
 /* ===== 상태 ===== */
 const state = {
@@ -465,11 +490,11 @@ function renderSheet(mode) {
 
   if (day) {
     const ymd = serialToYMD(w.monday + state.dayIdx);
-    $('weekLabel').textContent = w.label;
+    setTitle(w.label, weekSemester(w));
     $('weekRange').textContent = ymd.y + '. ' + ymd.m + '. ' + ymd.d + ' (' + DAY_NAMES[state.dayIdx] + ')';
   } else {
     const mon = serialToYMD(w.monday), sun = serialToYMD(w.monday + 6);
-    $('weekLabel').textContent = w.label;
+    setTitle(w.label, weekSemester(w));
     $('weekRange').textContent = mon.y + '. ' + mon.m + '. ' + mon.d + ' – ' + sun.m + '. ' + sun.d;
   }
   fitCells($('grid'));
@@ -497,7 +522,7 @@ function renderTwoWeek() {
   const w1 = shown[0], wl = shown[shown.length - 1];
   if (w1) {
     const a = serialToYMD(w1.monday), b = serialToYMD(wl.monday + 6);
-    $('weekLabel').textContent = shown.length > 1 ? w1.label + '–' + wl.label : w1.label;
+    setTitle(shown.length > 1 ? w1.label + '–' + wl.label : w1.label, weekSemester(w1));
     $('weekRange').textContent = a.m + '. ' + a.d + ' – ' + b.m + '. ' + b.d;
   }
   fitCells($('grid'));
@@ -520,7 +545,7 @@ function renderMonth() {
   grid.className = 'gridc monthview';
 
   const y = state.monthY, m = state.monthM;
-  $('weekLabel').textContent = y + '년 ' + m + '월';
+  setTitle(y + '년 ' + m + '월', semesterOf(dateToSerial(y, m, 1)));
   $('weekRange').textContent = '';
 
   const first = dateToSerial(y, m, 1);
