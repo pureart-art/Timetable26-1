@@ -169,8 +169,60 @@ function checkMenu() {
   return out;
 }
 
+function checkNoticeData() {
+  const out = [];
+
+  /* 정렬: 날짜 내림차순, 동률이면 시트 행 순서 유지 */
+  const sorted = parseNotices([
+    ['2026-08-01', '가장 오래됨', 'a'],
+    ['2026-08-12', '같은 날 첫째', 'b'],
+    ['2026-08-12', '같은 날 둘째', 'c'],
+    ['2026-08-05', '중간', 'd'],
+  ]).map(n => n.title);
+  out.push({
+    name: '공지 · 날짜 내림차순 + 동률은 행 순서',
+    pass: JSON.stringify(sorted) === JSON.stringify(['같은 날 첫째', '같은 날 둘째', '중간', '가장 오래됨']),
+    detail: JSON.stringify(sorted),
+  });
+
+  /* 빈 행과 공백 행은 버린다 */
+  const cleaned = parseNotices([['2026-08-12', '살아남음', ''], ['', '', ''], [null, null, null]]);
+  out.push({ name: '공지 · 빈 행을 버린다', pass: cleaned.length === 1, detail: 'len=' + cleaned.length });
+
+  /* 시리얼 숫자로 와도 YYYY-MM-DD로 정규화 */
+  out.push({
+    name: '공지 · 날짜 시리얼을 정규화한다',
+    pass: noticeDate(46246) === '2026-08-12' && noticeDate('2026-08-12') === '2026-08-12' && noticeDate(null) === '',
+    detail: noticeDate(46246) + ' / ' + noticeDate('2026-08-12') + ' / "' + noticeDate(null) + '"',
+  });
+
+  /* 읽음 판정 */
+  const items = parseNotices([['2026-08-12', 'x', ''], ['2026-08-01', 'y', '']]);
+  localStorage.removeItem('tt_notice_seen');
+  const beforeSeen = hasUnreadNotices(items);
+  markNoticesSeen(items);
+  const afterSeen = hasUnreadNotices(items);
+  const withNewer = hasUnreadNotices(parseNotices([['2026-08-20', 'z', '']]));
+  out.push({
+    name: '공지 · 읽음 처리 후 안읽음이 사라지고 새 항목엔 다시 뜬다',
+    pass: beforeSeen === true && afterSeen === false && withNewer === true,
+    detail: [beforeSeen, afterSeen, withNewer].join(' / '),
+  });
+  out.push({ name: '공지 · 아는 공지가 없으면 안읽음이 아니다', pass: hasUnreadNotices([]) === false, detail: String(hasUnreadNotices([])) });
+
+  /* 상태 계약 */
+  out.push({
+    name: '공지 · noticeState 초기 형태',
+    pass: !!noticeState && Array.isArray(noticeState.items)
+       && ['loading', 'ok', 'empty', 'no-tab', 'stale', 'error'].indexOf(noticeState.status) >= 0,
+    detail: JSON.stringify({ status: noticeState.status, n: noticeState.items.length }),
+  });
+
+  return out;
+}
+
 function runAll() {
-  const checks = [checkParser, checkTitle, checkMenu];
+  const checks = [checkParser, checkTitle, checkMenu, checkNoticeData];
   let rows = [];
   for (const fn of checks) {
     try { rows = rows.concat(fn()); }

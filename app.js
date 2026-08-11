@@ -797,10 +797,16 @@ async function main() {
   await loadSnapshotData(true);
   /* 2) 라이브는 백그라운드에서 시도 — 되면 LIVE로 승격, 안 되면 스냅샷 유지 */
   refreshLive();
+  /* 공지는 시간표와 독립적으로 로드 — 실패해도 시간표에 영향 없음 */
+  initNotices();
   setInterval(() => { if (!document.hidden && CONFIG.API_KEY) refreshLive(); }, CONFIG.POLL_MS);
   /* 현재 교시 강조 갱신 */
   setInterval(() => { if (!document.hidden) render(); }, 60000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && CONFIG.API_KEY) refreshLive(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || !CONFIG.API_KEY) return;
+    refreshLive();
+    refreshNotices(false);   /* 마지막 성공이 30분 넘었을 때만 실제로 나간다 */
+  });
   /* localhost(개발)에서는 SW 미등록 — 캐시가 코드 수정을 가리는 것 방지 */
   if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
