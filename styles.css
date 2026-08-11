@@ -112,3 +112,14 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 .hldesc{font-size:12.5px;color:#73726c;text-align:left;line-height:1.55;margin-bottom:10px}
 .hlinput{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:14px;line-height:1.5;border:0.5px solid #b5b2aa;border-radius:8px;padding:8px 10px;resize:vertical}
 .sheetpop-inner .nbtn.hlclose{margin-top:8px;background:#f4f2ec}
+
+/* ===== 3줄 메뉴 ===== */
+.hlbtn{position:relative}
+.menulist{list-style:none;margin:0;padding:0;text-align:left}
+.menulist li+li{margin-top:6px}
+.menuitem{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;font:inherit;font-size:14.5px;color:#1f1e1c;text-decoration:none;background:#f4f2ec;border:0.5px solid #e2ded4;border-radius:10px;padding:12px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.menuitem:active{background:#e9e6dd}
+.mi-ico{font-size:16px;line-height:1;flex:none}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#FF0000;margin-left:6px;flex:none}
+.dot[hidden]{display:none}
+#btnMenuDot{position:absolute;top:-1px;right:-1px;margin:0;width:6px;height:6px}

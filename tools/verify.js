@@ -127,8 +127,50 @@ function checkTitle() {
   return out;
 }
 
+function checkMenu() {
+  const out = [];
+  const $$ = id => document.getElementById(id);
+
+  out.push({
+    name: '메뉴 · 옛 톱니 버튼이 사라졌다',
+    pass: !$$('btnHl') && !!$$('btnMenu'),
+    detail: 'btnHl=' + !!$$('btnHl') + ' btnMenu=' + !!$$('btnMenu'),
+  });
+
+  const ids = ['menupop', 'miHl', 'miNtc', 'ntcDot', 'miGuide', 'menuClose', 'btnMenuDot'];
+  const missing = ids.filter(id => !$$(id));
+  out.push({ name: '메뉴 · 필요한 요소가 전부 있다', pass: missing.length === 0, detail: 'missing=' + JSON.stringify(missing) });
+
+  out.push({
+    name: '메뉴 · 가이드 링크가 guide.html을 가리킨다',
+    pass: !!$$('miGuide') && $$('miGuide').getAttribute('href') === 'guide.html',
+    detail: $$('miGuide') ? $$('miGuide').getAttribute('href') : 'no element',
+  });
+
+  /* 열기 → 하이라이트 → 메뉴는 닫히고 하이라이트가 열린다 */
+  $$('btnMenu').click();
+  const opened = !$$('menupop').hidden;
+  $$('miHl').click();
+  const swapped = $$('menupop').hidden && !$$('hlpop').hidden;
+  $$('hlClose').click();
+  out.push({ name: '메뉴 · 버튼을 누르면 열린다', pass: opened, detail: 'menupop.hidden=' + $$('menupop').hidden });
+  out.push({ name: '메뉴 · 하이라이트 항목이 기존 팝업을 연다', pass: swapped, detail: 'menupop.hidden=' + $$('menupop').hidden + ' hlpop.hidden=' + $$('hlpop').hidden });
+
+  /* 배경 탭으로 닫힌다 */
+  $$('btnMenu').click();
+  $$('menupop').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  out.push({ name: '메뉴 · 배경을 누르면 닫힌다', pass: $$('menupop').hidden, detail: 'hidden=' + $$('menupop').hidden });
+
+  /* 점은 hidden 속성으로 숨겨지고 CSS가 이를 존중해야 한다 */
+  $$('ntcDot').hidden = true;
+  const dotHidden = getComputedStyle($$('ntcDot')).display === 'none';
+  out.push({ name: '메뉴 · [hidden] 점이 실제로 안 보인다', pass: dotHidden, detail: 'display=' + getComputedStyle($$('ntcDot')).display });
+
+  return out;
+}
+
 function runAll() {
-  const checks = [checkParser, checkTitle];
+  const checks = [checkParser, checkTitle, checkMenu];
   let rows = [];
   for (const fn of checks) {
     try { rows = rows.concat(fn()); }

@@ -757,11 +757,19 @@ function bindUI() {
   });
   $('popClose').addEventListener('click', () => { $('sheetpop').hidden = true; });
   $('sheetpop').addEventListener('click', e => { if (e.target === $('sheetpop')) $('sheetpop').hidden = true; });
-  $('btnHl').addEventListener('click', () => {
+  /* 3줄 메뉴 */
+  const openMenu = () => { $('menupop').hidden = false; };
+  const closeMenu = () => { $('menupop').hidden = true; };
+  $('btnMenu').addEventListener('click', openMenu);
+  $('menuClose').addEventListener('click', closeMenu);
+  $('menupop').addEventListener('click', e => { if (e.target === $('menupop')) closeMenu(); });
+  $('miHl').addEventListener('click', () => {
+    closeMenu();
     let raw = ''; try { raw = localStorage.getItem(HL_KEY) || ''; } catch (e) {}
     $('hlInput').value = raw;
     $('hlpop').hidden = false;
   });
+  /* 공지 항목은 Task 6에서 notices.js가 연결한다 */
   $('hlSave').addEventListener('click', () => { saveKeywords($('hlInput').value); $('hlpop').hidden = true; });
   $('hlClose').addEventListener('click', () => { $('hlpop').hidden = true; });
   $('hlpop').addEventListener('click', e => { if (e.target === $('hlpop')) $('hlpop').hidden = true; });
