@@ -425,7 +425,9 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 function checkTitle() {
   const out = [];
   const t = () => document.getElementById('titleMain').textContent;
-  const saveView = state.view, saveIdx = state.weekIdx, saveY = state.monthY, saveM = state.monthM;
+  /* 이 함수는 뷰 상태를 휘젓는다 — 건드리는 것을 전부 저장하고 끝에 되돌린다 */
+  const saveView = state.view, saveIdx = state.weekIdx, saveDay = state.dayIdx,
+        saveY = state.monthY, saveM = state.monthM;
 
   const cases = [
     /* [weekIdx, view, 기대 제목, 설명] */
@@ -467,7 +469,8 @@ function checkTitle() {
       .map(semesterOf).join(' / '),
   });
 
-  state.view = saveView; state.weekIdx = saveIdx; state.monthY = saveY; state.monthM = saveM;
+  state.view = saveView; state.weekIdx = saveIdx; state.dayIdx = saveDay;
+  state.monthY = saveY; state.monthM = saveM;
   render();
   return out;
 }
