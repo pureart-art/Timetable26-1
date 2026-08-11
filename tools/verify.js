@@ -196,13 +196,19 @@ function checkNoticeData() {
     detail: noticeDate(46246) + ' / ' + noticeDate('2026-08-12') + ' / "' + noticeDate(null) + '"',
   });
 
-  /* 읽음 판정 */
+  /* 읽음 판정 — 이 검증은 공유 localStorage를 건드리므로 원래 값을 저장하고 되돌린다.
+     안 되돌리면 실배포 페이지에서 하니스를 돌렸을 때 진짜 공지가 '이미 읽음'으로 보인다. */
   const items = parseNotices([['2026-08-12', 'x', ''], ['2026-08-01', 'y', '']]);
-  localStorage.removeItem('tt_notice_seen');
+  let savedSeen = null;
+  try { savedSeen = localStorage.getItem('tt_notice_seen'); localStorage.removeItem('tt_notice_seen'); } catch (e) {}
   const beforeSeen = hasUnreadNotices(items);
   markNoticesSeen(items);
   const afterSeen = hasUnreadNotices(items);
   const withNewer = hasUnreadNotices(parseNotices([['2026-08-20', 'z', '']]));
+  try {
+    if (savedSeen === null) localStorage.removeItem('tt_notice_seen');
+    else localStorage.setItem('tt_notice_seen', savedSeen);
+  } catch (e) {}
   out.push({
     name: '공지 · 읽음 처리 후 안읽음이 사라지고 새 항목엔 다시 뜬다',
     pass: beforeSeen === true && afterSeen === false && withNewer === true,
