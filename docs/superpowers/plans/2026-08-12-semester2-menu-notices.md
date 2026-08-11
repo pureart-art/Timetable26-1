@@ -443,11 +443,13 @@ function checkTitle() {
     out.push({ name: '제목 · ' + desc, pass: t() === want, detail: 'got "' + t() + '" want "' + want + '"' });
   }
 
-  /* 월간은 그 달 1일 기준 */
+  /* 월간은 그 달 1일 기준 — 1일이 어느 학기 시작일보다도 앞서면 학기명이 없다.
+     이 범위에서 그런 달은 2026년 3월(1일 < 개강 3/30) 하나뿐이다. */
   const months = [
     [2026, 8, '의학과 26-1 시간표: 2026년 8월', '경계 달(8/1은 26-1)'],
     [2026, 9, '의학과 26-2 시간표: 2026년 9월', '2학기 달'],
-    [2026, 3, '의학과 26-1 시간표: 2026년 3월', '1학기 달'],
+    [2026, 4, '의학과 26-1 시간표: 2026년 4월', '1학기 달'],
+    [2026, 3, '의학과 시간표: 2026년 3월', '개강 전 달은 학기명 없음'],
   ];
   for (const [y, m, want, desc] of months) {
     state.view = 'month'; state.monthY = y; state.monthM = m;
@@ -579,7 +581,7 @@ cd /c/Users/wbnuj/timetable-pwa && node --check app.js && node --check tools/ver
 Expected: `OK`
 
 프리뷰 새로고침 → `tools/verify.js` 평가 → `runAll()`
-Expected: `ALL PASS (15)` — checkParser 4 + checkTitle 11
+Expected: `ALL PASS (16)` — checkParser 4 + checkTitle 12
 
 - [ ] **Step 8: 모바일 폭 확인**
 
@@ -755,7 +757,7 @@ cd /c/Users/wbnuj/timetable-pwa && node --check app.js && node --check tools/ver
 Expected: `OK`
 
 프리뷰 새로고침 → 평가 → `runAll()`
-Expected: `ALL PASS (22)` — 4 + 11 + 7
+Expected: `ALL PASS (23)` — 4 + 12 + 7
 
 - [ ] **Step 8: 눈으로 확인**
 
@@ -863,7 +865,7 @@ function checkNoticeData() {
 - [ ] **Step 2: 실패 확인**
 
 프리뷰 새로고침 → 평가 → `runAll()`
-Expected: `checkNoticeData (예외)` FAIL (`parseNotices is not defined`). 앞선 22개는 PASS 유지.
+Expected: `checkNoticeData (예외)` FAIL (`parseNotices is not defined`). 앞선 23개는 PASS 유지.
 
 - [ ] **Step 3: `notices.js` 작성**
 
@@ -1077,7 +1079,7 @@ cd /c/Users/wbnuj/timetable-pwa && node --check notices.js && node --check app.j
 Expected: `OK`
 
 프리뷰 새로고침 → 평가 → `runAll()`
-Expected: `ALL PASS (28)` — 4 + 11 + 7 + 6
+Expected: `ALL PASS (29)` — 4 + 12 + 7 + 6
 
 - [ ] **Step 8: 실제 호출 상태 확인**
 
@@ -1196,7 +1198,7 @@ function checkNoticeUI() {
 - [ ] **Step 2: 실패 확인**
 
 프리뷰 새로고침 → 평가 → `runAll()`
-Expected: `checkNoticeUI (예외)` FAIL (`ntcBody`가 null). 앞선 28개는 PASS 유지.
+Expected: `checkNoticeUI (예외)` FAIL (`ntcBody`가 null). 앞선 29개는 PASS 유지.
 
 - [ ] **Step 3: index.html — 공지 시트 추가**
 
@@ -1343,7 +1345,7 @@ cd /c/Users/wbnuj/timetable-pwa && node --check notices.js && node --check app.j
 Expected: `OK`
 
 프리뷰 새로고침 → 평가 → `runAll()`
-Expected: `ALL PASS (37)` — 4 + 11 + 7 + 6 + 9
+Expected: `ALL PASS (38)` — 4 + 12 + 7 + 6 + 9
 
 - [ ] **Step 8: 시간표 격리 확인**
 
@@ -1445,7 +1447,7 @@ Expected: `0`, 그리고 `btnHl` 매치 없음
 - [ ] **Step 5: 전체 검증 재실행**
 
 프리뷰 새로고침 → `tools/verify.js` 평가 → `runAll()`
-Expected: `ALL PASS (37)`
+Expected: `ALL PASS (38)`
 
 위젯 하니스(`C:\Users\wbnuj\.claude\skills\deploying-timetable-pwa\widget-mock-harness.js`)를 붙여넣어 실행.
 Expected: 4개 크기 전부 `errTexts` 비고 `set = true`
@@ -1534,5 +1536,5 @@ Expected: 제목이 `의학과 26-1 시간표: <현재 주차>`, 메뉴 3항목,
 - `setTitle(label, semName)` 인자 순서가 Task 3의 정의와 4개 호출 지점에서 일치한다.
 - `renderNoticeDot()`/`renderNoticePanel()`은 Task 5에서 빈 함수로 선언되고 Task 6에서 같은 이름으로 대체된다 — `refreshNotices()`가 둘 다 호출하므로 Task 5 시점에도 정의돼 있어야 한다.
 - `closeMenu`는 Task 4에서 `bindUI()` 지역 `const`로 선언되고 Task 6 Step 6이 같은 함수 안에서 쓴다 — 스코프 일치.
-- 누적 검증 개수: 4 → 15 → 22 → 28 → 37 (checkParser 4 · checkTitle 11 · checkMenu 7 · checkNoticeData 6 · checkNoticeUI 9). 각 Task의 기대값과 일치.
+- 누적 검증 개수: 4 → 16 → 23 → 29 → 38 (checkParser 4 · checkTitle 12 · checkMenu 7 · checkNoticeData 6 · checkNoticeUI 9). 각 Task의 기대값과 일치.
 - `openNotices()`가 `refreshNotices(false)`를 부르므로, `checkNoticeUI`는 테스트 중 이 함수를 스텁으로 갈아끼워 비동기 응답이 어서션 뒤에 상태를 덮어쓰지 않게 한다 (Task 6 Step 1).
