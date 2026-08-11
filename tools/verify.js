@@ -227,8 +227,80 @@ function checkNoticeData() {
   return out;
 }
 
+function checkNoticeUI() {
+  const out = [];
+  const $$ = id => document.getElementById(id);
+  const save = { status: noticeState.status, items: noticeState.items, at: noticeState.at };
+  /* openNotices()가 refreshNotices()를 부른다 — 비동기 응답이 어서션 뒤에 noticeState를
+     덮어써 테스트가 들쭉날쭉해지지 않도록, 테스트 동안 스텁으로 갈아끼운다.
+     최상위 function 선언은 전역 객체의 쓰기 가능한 속성이라 이 교체가 실제로 먹는다. */
+  const realRefresh = window.refreshNotices;
+  window.refreshNotices = async () => {};
+  const setState = (status, items, at) => {
+    noticeState.status = status; noticeState.items = items; noticeState.at = at || null;
+    renderNoticePanel(); renderNoticeDot();
+  };
+  const text = () => $$('ntcBody').textContent;
+
+  out.push({ name: '공지UI · 패널 요소가 있다', pass: !!$$('ntcpop') && !!$$('ntcBody') && !!$$('ntcClose'), detail: '' });
+
+  /* 상태별 문구 — '없음'과 '못 읽음'이 구분돼야 한다 */
+  setState('empty', []);
+  const emptyMsg = text().indexOf('아직 공지가 없어요') >= 0;
+  setState('no-tab', []);
+  const noTabMsg = text().indexOf('아직 공지가 없어요') >= 0;
+  setState('error', []);
+  const errMsg = text().indexOf('불러오지 못했어요') >= 0;
+  out.push({ name: '공지UI · 빈 공지와 탭 없음은 "없어요"', pass: emptyMsg && noTabMsg, detail: 'empty=' + emptyMsg + ' noTab=' + noTabMsg });
+  out.push({ name: '공지UI · 로드 실패는 "불러오지 못했어요"', pass: errMsg, detail: text().slice(0, 40) });
+
+  /* 실패 상태에서는 점이 뜨지 않는다 */
+  localStorage.removeItem('tt_notice_seen');
+  setState('error', []);
+  out.push({ name: '공지UI · 실패 시 빨간 점이 안 뜬다', pass: $$('ntcDot').hidden && $$('btnMenuDot').hidden, detail: 'ntcDot=' + $$('ntcDot').hidden + ' btnDot=' + $$('btnMenuDot').hidden });
+
+  /* stale: 목록 + 마지막 확인 */
+  const two = parseNotices([['2026-08-12', '최신 공지', '내용1'], ['2026-08-01', '옛 공지', '내용2']]);
+  setState('stale', two, new Date('2026-08-11T09:00:00+09:00'));
+  out.push({ name: '공지UI · 캐시 표시에 마지막 확인이 붙는다', pass: text().indexOf('마지막 확인') >= 0 && text().indexOf('최신 공지') >= 0, detail: text().slice(0, 60) });
+
+  /* ok: 목록 + 안읽음 점 */
+  setState('ok', two, new Date());
+  const dotOn = !$$('ntcDot').hidden && !$$('btnMenuDot').hidden;
+  const ordered = text().indexOf('최신 공지') < text().indexOf('옛 공지');
+  out.push({ name: '공지UI · 새 공지에 점이 뜬다', pass: dotOn, detail: 'ntcDot=' + $$('ntcDot').hidden + ' btnDot=' + $$('btnMenuDot').hidden });
+  out.push({ name: '공지UI · 최신이 위에 온다', pass: ordered, detail: 'ordered=' + ordered });
+
+  /* 열면 읽음 처리 → 점이 사라진다 */
+  openNotices();
+  const opened = !$$('ntcpop').hidden;
+  const dotOff = $$('ntcDot').hidden && $$('btnMenuDot').hidden;
+  $$('ntcClose').click();
+  out.push({ name: '공지UI · 열면 열리고 읽음 처리된다', pass: opened && dotOff, detail: 'opened=' + opened + ' dotOff=' + dotOff });
+
+  /* 6개 이상이면 접힌다 */
+  const many = parseNotices([
+    ['2026-08-17', 'n7', ''], ['2026-08-16', 'n6', ''], ['2026-08-15', 'n5', ''],
+    ['2026-08-14', 'n4', ''], ['2026-08-13', 'n3', ''], ['2026-08-12', 'n2', ''], ['2026-08-11', 'n1', ''],
+  ]);
+  setState('ok', many, new Date());
+  const moreBtn = $$('ntcBody').querySelector('.ntcmore');
+  const shownBefore = $$('ntcBody').querySelectorAll('.ntcitem').length;
+  if (moreBtn) moreBtn.click();
+  const shownAfter = $$('ntcBody').querySelectorAll('.ntcitem').length;
+  out.push({
+    name: '공지UI · 5개 펼침 + 더 보기로 전체',
+    pass: !!moreBtn && shownBefore === 5 && shownAfter === 7,
+    detail: 'more=' + !!moreBtn + ' before=' + shownBefore + ' after=' + shownAfter,
+  });
+
+  window.refreshNotices = realRefresh;
+  setState(save.status, save.items, save.at);
+  return out;
+}
+
 function runAll() {
-  const checks = [checkParser, checkTitle, checkMenu, checkNoticeData];
+  const checks = [checkParser, checkTitle, checkMenu, checkNoticeData, checkNoticeUI];
   let rows = [];
   for (const fn of checks) {
     try { rows = rows.concat(fn()); }

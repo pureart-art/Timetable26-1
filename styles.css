@@ -123,3 +123,13 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#FF0000;margin-left:6px;flex:none}
 .dot[hidden]{display:none}
 #btnMenuDot{position:absolute;top:-1px;right:-1px;margin:0;width:6px;height:6px}
+
+/* ===== 공지사항 ===== */
+.ntclist{text-align:left;max-height:52vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.ntcitem{padding:10px 0;border-bottom:0.5px solid #e6e2d9}
+.ntcitem:last-child{border-bottom:0}
+.ntcdate{font-size:11px;color:#8a897f;font-variant-numeric:tabular-nums}
+.ntctitle{font-size:14px;font-weight:600;margin-top:2px}
+.ntcbody{font-size:13px;color:#4a4945;line-height:1.55;margin-top:3px;white-space:pre-wrap;word-break:break-word}
+.ntcmsg{font-size:13px;color:#73726c;padding:16px 0;text-align:center;line-height:1.6}
+.ntcmore{display:block;width:100%;font:inherit;font-size:13px;color:#73726c;background:none;border:0;padding:10px 0;cursor:pointer}

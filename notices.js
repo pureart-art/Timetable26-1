@@ -135,6 +135,93 @@ function initNotices() {
   refreshNotices(true);
 }
 
-/* UI는 Task 6에서 채운다 — 지금은 호출만 안전하게 받아둔다 */
-function renderNoticeDot() {}
-function renderNoticePanel() {}
+/* ===== UI ===== */
+let noticeExpanded = false;   /* '더 보기'를 눌렀는지 (패널 닫으면 초기화) */
+
+function noticeStatusMessage() {
+  switch (noticeState.status) {
+    case 'loading': return '공지를 불러오는 중이에요…';
+    case 'empty':
+    case 'no-tab':  return '아직 공지가 없어요.';
+    case 'error':   return '공지를 불러오지 못했어요.\n인터넷 연결을 확인하고 다시 열어보세요.';
+    default:        return '';
+  }
+}
+
+function renderNoticePanel() {
+  const body = document.getElementById('ntcBody');
+  if (!body) return;
+  body.innerHTML = '';
+
+  if (!noticeState.items.length) {
+    const msg = document.createElement('div');
+    msg.className = 'ntcmsg';
+    msg.textContent = noticeStatusMessage();
+    body.appendChild(msg);
+    return;
+  }
+
+  const all = noticeState.items;
+  const shown = noticeExpanded ? all : all.slice(0, NOTICE.SHOW_EXPANDED);
+  for (const n of shown) {
+    const item = document.createElement('div');
+    item.className = 'ntcitem';
+    if (n.date) {
+      const d = document.createElement('div');
+      d.className = 'ntcdate'; d.textContent = n.date;
+      item.appendChild(d);
+    }
+    if (n.title) {
+      const t = document.createElement('div');
+      t.className = 'ntctitle'; t.textContent = n.title;
+      item.appendChild(t);
+    }
+    if (n.body) {
+      const b = document.createElement('div');
+      b.className = 'ntcbody'; b.textContent = n.body;
+      item.appendChild(b);
+    }
+    body.appendChild(item);
+  }
+
+  if (!noticeExpanded && all.length > NOTICE.SHOW_EXPANDED) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'ntcmore';
+    more.textContent = '이전 공지 ' + (all.length - NOTICE.SHOW_EXPANDED) + '개 더 보기';
+    more.addEventListener('click', () => { noticeExpanded = true; renderNoticePanel(); });
+    body.appendChild(more);
+  }
+
+  /* 캐시를 보여주는 중이면 언제 확인한 것인지 밝힌다 */
+  if (noticeState.status === 'stale' && noticeState.at) {
+    const at = document.createElement('div');
+    at.className = 'ntcmsg';
+    at.textContent = '마지막 확인 ' +
+      noticeState.at.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' });
+    body.appendChild(at);
+  }
+}
+
+function renderNoticeDot() {
+  const unread = hasUnreadNotices(noticeState.items);
+  const a = document.getElementById('ntcDot');
+  const b = document.getElementById('btnMenuDot');
+  if (a) a.hidden = !unread;
+  if (b) b.hidden = !unread;
+}
+
+function openNotices() {
+  noticeExpanded = false;
+  renderNoticePanel();
+  document.getElementById('ntcpop').hidden = false;
+  markNoticesSeen(noticeState.items);
+  renderNoticeDot();
+  refreshNotices(false);   /* 열 때 갱신 시도 — 30분 스로틀에 걸리면 조용히 넘어간다 */
+}
+
+function bindNotices() {
+  const pop = document.getElementById('ntcpop');
+  document.getElementById('ntcClose').addEventListener('click', () => { pop.hidden = true; });
+  pop.addEventListener('click', e => { if (e.target === pop) pop.hidden = true; });
+}

@@ -769,7 +769,8 @@ function bindUI() {
     $('hlInput').value = raw;
     $('hlpop').hidden = false;
   });
-  /* 공지 항목은 Task 6에서 notices.js가 연결한다 */
+  $('miNtc').addEventListener('click', () => { closeMenu(); openNotices(); });
+  bindNotices();
   $('hlSave').addEventListener('click', () => { saveKeywords($('hlInput').value); $('hlpop').hidden = true; });
   $('hlClose').addEventListener('click', () => { $('hlpop').hidden = true; });
   $('hlpop').addEventListener('click', e => { if (e.target === $('hlpop')) $('hlpop').hidden = true; });
