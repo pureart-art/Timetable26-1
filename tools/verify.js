@@ -121,6 +121,25 @@ function checkTitle() {
       .map(semesterOf).join(' / '),
   });
 
+  /* 빈 라벨 주: 유령 구분자가 남으면 안 된다. 라이브 시트엔 지금 빈 라벨이 없지만,
+     번들 스냅샷은 갱신 주기가 달라 실제로 담고 있었다 — 합성 주를 끼워 직접 검증한다. */
+  const lastW = state.weeks[state.weeks.length - 1];
+  state.weeks.push({ label: '', monday: lastW.monday + 7, cells: [], holidays: [false, false, false, false, false, false, false] });
+  const bIdx = state.weeks.length - 1;
+  state.view = 'week'; state.weekIdx = bIdx; state.dayIdx = 0; render();
+  const blankWeekTitle = t();
+  state.view = 'two'; state.weekIdx = bIdx - 1; render();
+  const blankTwoTitle = t();
+  const twLabels = Array.prototype.map.call(document.querySelectorAll('.twlabel'), e => e.textContent.trim());
+  state.weeks.pop();
+  out.push({
+    name: '제목 · 빈 라벨에 유령 구분자가 안 남는다',
+    pass: blankWeekTitle === '의학과 시간표'
+       && !/–\s*$/.test(blankTwoTitle)
+       && !twLabels.some(s => s.indexOf('·') === 0),
+    detail: 'week="' + blankWeekTitle + '" two="' + blankTwoTitle + '" tw=' + JSON.stringify(twLabels),
+  });
+
   state.view = saveView; state.weekIdx = saveIdx; state.dayIdx = saveDay;
   state.monthY = saveY; state.monthM = saveM;
   render();
@@ -162,6 +181,7 @@ function checkMenu() {
   out.push({ name: '메뉴 · 배경을 누르면 닫힌다', pass: $$('menupop').hidden, detail: 'hidden=' + $$('menupop').hidden });
 
   /* 점은 hidden 속성으로 숨겨지고 CSS가 이를 존중해야 한다 */
+  /* 이 값은 checkNoticeUI가 끝에 renderNoticeDot()을 부르며 되돌린다 — runAll 안에서 치유됨 */
   $$('ntcDot').hidden = true;
   const dotHidden = getComputedStyle($$('ntcDot')).display === 'none';
   out.push({ name: '메뉴 · [hidden] 점이 실제로 안 보인다', pass: dotHidden, detail: 'display=' + getComputedStyle($$('ntcDot')).display });
@@ -250,17 +270,21 @@ function checkNoticeUI() {
 
   /* 상태별 문구 — '없음'과 '못 읽음'이 구분돼야 한다 */
   setState('empty', []);
-  const emptyMsg = text().indexOf('아직 공지가 없어요') >= 0;
+  const emptyMsg = text();
   setState('no-tab', []);
-  const noTabMsg = text().indexOf('아직 공지가 없어요') >= 0;
+  const noTabMsg = text();
   setState('error', []);
   const errMsg = text().indexOf('불러오지 못했어요') >= 0;
-  out.push({ name: '공지UI · 빈 공지와 탭 없음은 "없어요"', pass: emptyMsg && noTabMsg, detail: 'empty=' + emptyMsg + ' noTab=' + noTabMsg });
+  out.push({
+    name: '공지UI · 빈 공지와 탭 없음이 서로 다른 문구다',
+    pass: emptyMsg.indexOf('아직 공지가 없어요') >= 0 && noTabMsg.indexOf('찾지 못했어요') >= 0 && emptyMsg !== noTabMsg,
+    detail: 'empty="' + emptyMsg + '" noTab="' + noTabMsg + '"',
+  });
   out.push({ name: '공지UI · 로드 실패는 "불러오지 못했어요"', pass: errMsg, detail: text().slice(0, 40) });
 
   /* 실패 상태에서는 점이 뜨지 않는다 (tt_notice_seen은 위에서 이미 비워 둠) */
   setState('error', []);
-  out.push({ name: '공지UI · 실패 시 빨간 점이 안 뜬다', pass: $$('ntcDot').hidden && $$('btnMenuDot').hidden, detail: 'ntcDot=' + $$('ntcDot').hidden + ' btnDot=' + $$('btnMenuDot').hidden });
+  out.push({ name: '공지UI · 아는 공지가 0건이면 점이 안 뜬다', pass: $$('ntcDot').hidden && $$('btnMenuDot').hidden, detail: 'ntcDot=' + $$('ntcDot').hidden + ' btnDot=' + $$('btnMenuDot').hidden });
 
   /* stale: 목록 + 마지막 확인 */
   const two = parseNotices([['2026-08-12', '최신 공지', '내용1'], ['2026-08-01', '옛 공지', '내용2']]);

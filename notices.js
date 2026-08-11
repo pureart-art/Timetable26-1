@@ -27,12 +27,19 @@ const noticeState = { status: 'loading', items: [], at: null };
 
 let noticeLastOk = 0;
 
-/* 시트 시리얼(A열이 날짜 서식일 때) 또는 문자열 → 'YYYY-MM-DD' */
+/* 시트 값 → 'YYYY-MM-DD'. 날짜 서식 셀은 시리얼로, 텍스트 셀은 문자열로 온다.
+   흔한 한국 로케일 표기('2026. 9. 1')까지 받아 ISO로 맞추고, 해석 불가면 빈 문자열 —
+   없는 값을 지어내지 않는다. 잘못된 문자열을 그대로 두면 정렬 키와 읽음 비교가 조용히
+   망가진다('2026. 9. 1' > '2026-10-01'이 참이 되어 새 공지에 점이 안 뜬다). */
 function noticeDate(v) {
   if (typeof v === 'number' && v > 20000 && v < 80000) {
     return new Date((v - 25569) * 86400000).toISOString().slice(0, 10);
   }
-  return String(v == null ? '' : v).trim();
+  const s = String(v == null ? '' : v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{4})\s*[./]\s*(\d{1,2})\s*[./]\s*(\d{1,2})\.?$/);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  return '';
 }
 
 /* 시트 행 배열 → 정렬된 공지 항목. 날짜·제목이 둘 다 비면 버린다. */
@@ -68,7 +75,9 @@ function hasUnreadNotices(items) {
 function readNoticeCache() {
   try {
     const o = JSON.parse(localStorage.getItem(NOTICE.CACHE_KEY) || 'null');
-    return (o && Array.isArray(o.items)) ? o : null;
+    if (!o || !Array.isArray(o.items) || typeof o.at !== 'string' || isNaN(Date.parse(o.at))) return null;
+    /* 항목 모양이 깨졌으면 그 항목만 버린다 — 캐시 하나 때문에 패널 전체가 죽지 않게 */
+    return { at: o.at, items: o.items.filter(n => n && typeof n === 'object' && typeof n.date === 'string') };
   } catch (e) { return null; }
 }
 function writeNoticeCache(items) {
@@ -80,7 +89,7 @@ function writeNoticeCache(items) {
 function noticeUrl() {
   return 'https://sheets.googleapis.com/v4/spreadsheets/' + CONFIG.SHEET_ID +
     '/values/' + encodeURIComponent(NOTICE.TAB + '!' + NOTICE.RANGE) +
-    '?key=' + CONFIG.API_KEY;
+    '?key=' + CONFIG.API_KEY + '&valueRenderOption=UNFORMATTED_VALUE';
 }
 
 async function fetchNotices() {
@@ -141,8 +150,8 @@ let noticeExpanded = false;   /* '더 보기'를 눌렀는지 (패널 닫으면 
 function noticeStatusMessage() {
   switch (noticeState.status) {
     case 'loading': return '공지를 불러오는 중이에요…';
-    case 'empty':
-    case 'no-tab':  return '아직 공지가 없어요.';
+    case 'empty':   return '아직 공지가 없어요.';
+    case 'no-tab':  return '공지 목록을 찾지 못했어요.\n공지 탭 이름이 바뀌었을 수 있어요.';
     /* stale이 여기까지 오는 건 캐시가 '0건'일 때뿐이다(항목이 있으면 목록이 그려진다).
        아래 '마지막 확인'이 함께 붙어 "언제 기준으로 0건인지"가 드러난다. */
     case 'stale':   return '아직 공지가 없어요.';

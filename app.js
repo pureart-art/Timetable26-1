@@ -513,7 +513,7 @@ function renderTwoWeek() {
     const lab = document.createElement('div');
     lab.className = 'twlabel';
     const mon = serialToYMD(w.monday), sun = serialToYMD(w.monday + 6);
-    lab.textContent = w.label + ' · ' + mon.m + '. ' + mon.d + ' – ' + sun.m + '. ' + sun.d;
+    lab.textContent = (w.label ? w.label + ' · ' : '') + mon.m + '. ' + mon.d + ' – ' + sun.m + '. ' + sun.d;
     grid.appendChild(lab);
     const sub = document.createElement('div');
     grid.appendChild(sub);
@@ -522,7 +522,8 @@ function renderTwoWeek() {
   const w1 = shown[0], wl = shown[shown.length - 1];
   if (w1) {
     const a = serialToYMD(w1.monday), b = serialToYMD(wl.monday + 6);
-    setTitle(shown.length > 1 ? w1.label + '–' + wl.label : w1.label, weekSemester(w1));
+    /* 빈 라벨은 빼고 잇는다 — 없는 주차를 유령 구분자로 암시하지 않는다 */
+    setTitle(shown.map(w => w.label).filter(Boolean).join('–'), weekSemester(w1));
     $('weekRange').textContent = a.m + '. ' + a.d + ' – ' + b.m + '. ' + b.d;
   }
   fitCells($('grid'));
@@ -769,8 +770,12 @@ function bindUI() {
     $('hlInput').value = raw;
     $('hlpop').hidden = false;
   });
-  $('miNtc').addEventListener('click', () => { closeMenu(); openNotices(); });
-  bindNotices();
+  $('miNtc').addEventListener('click', () => {
+    closeMenu();
+    if (typeof openNotices === 'function') openNotices();
+  });
+  /* notices.js가 로드되지 않았어도 시간표는 떠야 한다 — bindUI()는 첫 렌더보다 먼저 돈다 */
+  if (typeof bindNotices === 'function') bindNotices();
   $('hlSave').addEventListener('click', () => { saveKeywords($('hlInput').value); $('hlpop').hidden = true; });
   $('hlClose').addEventListener('click', () => { $('hlpop').hidden = true; });
   $('hlpop').addEventListener('click', e => { if (e.target === $('hlpop')) $('hlpop').hidden = true; });
@@ -799,18 +804,18 @@ async function main() {
   /* 2) 라이브는 백그라운드에서 시도 — 되면 LIVE로 승격, 안 되면 스냅샷 유지 */
   refreshLive();
   /* 공지는 시간표와 독립적으로 로드 — 실패해도 시간표에 영향 없음 */
-  initNotices();
+  if (typeof initNotices === 'function') initNotices();
   setInterval(() => { if (!document.hidden && CONFIG.API_KEY) refreshLive(); }, CONFIG.POLL_MS);
   /* 현재 교시 강조 갱신 */
   setInterval(() => { if (!document.hidden) render(); }, 60000);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden || !CONFIG.API_KEY) return;
     refreshLive();
-    refreshNotices(false);   /* 마지막 성공이 30분 넘었을 때만 실제로 나간다 */
+    if (typeof refreshNotices === 'function') refreshNotices(false);   /* 마지막 성공이 30분 넘었을 때만 실제로 나간다 */
   });
   /* localhost(개발)에서는 SW 미등록 — 캐시가 코드 수정을 가리는 것 방지 */
   if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 }
-main();
+main().catch(e => console.error('앱 초기화 실패:', e));
