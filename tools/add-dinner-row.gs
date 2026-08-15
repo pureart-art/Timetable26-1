@@ -38,12 +38,62 @@ function findHeaderRows_(sh) {
   return out;
 }
 
+/**
+ * 진단: 스크립트가 실제로 어떤 파일의 어떤 값을 보고 있는지 로그로 찍는다.
+ * addDinnerRows가 '주 헤더를 찾지 못했습니다'로 실패하면 먼저 이걸 실행할 것.
+ * 앱이 읽는 파일 ID는 1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4 — 다르면 파일이 잘못된 것.
+ */
+function diagnose() {
+  var ss = SpreadsheetApp.getActive();
+  if (!ss) throw new Error('활성 스프레드시트가 없습니다 — 시트에서 확장 프로그램 → Apps Script로 열었는지 확인');
+  Logger.log('파일 이름: %s', ss.getName());
+  Logger.log('파일 ID  : %s', ss.getId());
+  Logger.log('URL      : %s', ss.getUrl());
+  Logger.log('탭 목록  : %s', ss.getSheets().map(function (s) { return '[' + s.getName() + ']'; }).join(' '));
+
+  var sh = ss.getSheetByName(TAB_NAME);
+  if (!sh) { Logger.log('!! 탭 "%s" 없음 — 위 탭 목록의 정확한 이름(공백 포함)을 확인', TAB_NAME); return; }
+  Logger.log('마지막 행: %s / 마지막 열: %s', sh.getLastRow(), sh.getLastColumn());
+
+  var n = Math.min(12, sh.getLastRow());
+  var vals = sh.getRange(1, 1, n, 9).getValues();
+  for (var i = 0; i < n; i++) {
+    var types = [];
+    for (var c = 2; c < 9; c++) {          // C~I
+      var v = vals[i][c];
+      types.push(v instanceof Date ? 'Date' : (v === '' ? '-' : typeof v));
+    }
+    Logger.log('%s행 A=%s B=%s | C~I 타입: %s | 날짜로 센 개수: %s',
+      i + 1, vals[i][0], vals[i][1], types.join(','), countDateish_(vals[i]));
+  }
+  Logger.log('→ 찾은 헤더 행: %s', JSON.stringify(findHeaderRows_(sh).slice(0, 10)));
+}
+
+function countDateish_(row) {
+  var n = 0;
+  for (var c = 2; c < 9; c++) if (isDateish_(row[c])) n++;
+  return n;
+}
+
 function addDinnerRows() {
-  var sh = SpreadsheetApp.getActive().getSheetByName(TAB_NAME);
-  if (!sh) throw new Error('탭을 찾을 수 없습니다: ' + TAB_NAME);
+  var ss = SpreadsheetApp.getActive();
+  if (!ss) throw new Error('활성 스프레드시트가 없습니다 — 시트에서 확장 프로그램 → Apps Script로 열었는지 확인');
+  var sh = ss.getSheetByName(TAB_NAME);
+  if (!sh) {
+    throw new Error('탭을 찾을 수 없습니다: ' + TAB_NAME + ' / 이 파일의 탭: '
+      + ss.getSheets().map(function (s) { return s.getName(); }).join(', '));
+  }
 
   var headers = findHeaderRows_(sh);
-  if (!headers.length) throw new Error('주 헤더(C~I에 날짜 3개 이상)를 찾지 못했습니다');
+  if (!headers.length) {
+    /* 실패할 땐 증거와 함께 실패한다 — 파일이 틀린 건지, 값 타입이 다른 건지 바로 갈리게 */
+    var probe = sh.getRange(1, 3, Math.min(3, sh.getLastRow()), 7).getValues();
+    throw new Error('주 헤더(C~I에 날짜 3개 이상)를 찾지 못했습니다.'
+      + ' 파일="' + ss.getName() + '" ID=' + ss.getId()
+      + ' 마지막행=' + sh.getLastRow()
+      + ' 1~3행 C~I 샘플=' + JSON.stringify(probe)
+      + ' — diagnose()를 실행해 로그를 확인하세요.');
+  }
 
   /* 아래에서 위로 — 삽입 지점이 항상 그 블록의 아래쪽이라 위 블록 행 번호가 안 밀린다 */
   var inserted = 0, skipped = 0;
