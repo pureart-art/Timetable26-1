@@ -56,21 +56,24 @@ const FIELDS = 'properties.title,sheets.properties,sheets.merges,' +
   'effectiveFormat.backgroundColor,effectiveFormat.textFormat.foregroundColor,' +
   'effectiveFormat.textFormat.foregroundColorStyle,textFormatRuns)';
 
-/* 교시 → 시간 (고정) */
+/* 교시 → 시간 (고정).
+   brk = 수업이 아닌 행(점심·저녁). '교시' 라벨을 안 붙이고 모바일 월간 요약에서 뺀다.
+   이 배열이 블록 높이의 정본 — 행을 늘리려면 여기만 고치고 시트 블록도 같이 늘린다. */
 const PERIODS = [
   { no: '1',   time: '09:00–09:50', sh: 9,  sm: 0,  eh: 9,  em: 50 },
   { no: '2',   time: '10:00–10:50', sh: 10, sm: 0,  eh: 10, em: 50 },
   { no: '3',   time: '11:00–11:50', sh: 11, sm: 0,  eh: 11, em: 50 },
   { no: '4',   time: '12:00–12:50', sh: 12, sm: 0,  eh: 12, em: 50 },
-  { no: '점심', time: '13:00–14:00', sh: 13, sm: 0,  eh: 14, em: 0  },
+  { no: '점심', time: '13:00–14:00', sh: 13, sm: 0,  eh: 14, em: 0,  brk: true },
   { no: '5',   time: '14:00–14:50', sh: 14, sm: 0,  eh: 14, em: 50 },
   { no: '6',   time: '15:00–15:50', sh: 15, sm: 0,  eh: 15, em: 50 },
   { no: '7',   time: '16:00–16:50', sh: 16, sm: 0,  eh: 16, em: 50 },
   { no: '8',   time: '17:00–17:50', sh: 17, sm: 0,  eh: 17, em: 50 },
+  { no: '저녁', time: '18:00–19:00', sh: 18, sm: 0,  eh: 19, em: 0,  brk: true },
 ];
 const DAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
 const FIRST_DAY_COL = 2; // C열
-const BLOCK_ROWS = 10;   // 헤더 1 + 교시 9
+const BLOCK_ROWS = 1 + PERIODS.length;   // 헤더 1 + 교시행
 const MONDAY_MOD = 2;    // 구글 시트 시리얼: serial % 7 === 2 이면 월요일 (46111 = 2026-03-30)
 
 /* ===== 학기 · 제목 ===== */
@@ -213,6 +216,7 @@ function parseGrid(api) {
     }
     if (dateCount >= 3) headers.push(r);
   }
+  const headerSet = new Set(headers);
 
   const rawMon = headers.map(h => {
     const n = cellNumber(getCell(rowData, h, FIRST_DAY_COL));
@@ -243,11 +247,14 @@ function parseGrid(api) {
     const cells = [];
     const covered = new Set();
 
-    for (let p = 0; p < 9; p++) {
+    for (let p = 0; p < PERIODS.length; p++) {
+      /* 이 주 블록이 아직 짧으면(예: 저녁 행을 안 넣은 주) 그 자리는 다음 주 헤더다.
+         날짜를 수업으로 그리지 않도록 빈 행으로 남긴다 — 시트를 고칠 때까지의 안전판. */
+      const outOfBlock = headerSet.has(h + 1 + p);
       for (let d = 0; d < 7; d++) {
         if (covered.has(p + ',' + d)) continue;
         const r = h + 1 + p, c = FIRST_DAY_COL + d;
-        const m = mergeAt.get(r + ',' + c);
+        const m = outOfBlock ? null : mergeAt.get(r + ',' + c);
         let rowSpan = 1, colSpan = 1;
         if (m) {
           const rEnd = Math.min(m.endRowIndex, h + BLOCK_ROWS);
@@ -261,7 +268,7 @@ function parseGrid(api) {
             for (let dd = d; dd < d + colSpan; dd++)
               if (pp !== p || dd !== d) covered.add(pp + ',' + dd);
         }
-        const cell = getCell(rowData, r, c);
+        const cell = outOfBlock ? null : getCell(rowData, r, c);
         const fmt = (cell && cell.effectiveFormat) || {};
         const bgRaw = colorToHex(fmt.backgroundColor);
         const defColor = colorToHex(fgOf(fmt.textFormat)) || '#000000';
@@ -270,7 +277,7 @@ function parseGrid(api) {
         cells.push({
           p, d, rowSpan, colSpan, lines,
           bg: lightenBg(bgRaw), bgRaw: isWhite(bgRaw) ? null : bgRaw,
-          isLunch: p === 4, isEmpty: lines.length === 0,
+          isBreak: !!PERIODS[p].brk, isEmpty: lines.length === 0,
           /* 제목 줄이 빨간 칸 = 시험(총괄평가/재시험) → 강조 */
           isExam: lines.length > 0 && isRedHex(lines[0].color),
         });
@@ -421,8 +428,8 @@ function buildWeekGrid(grid, w, opts) {
   const minRow = opts.minRow != null ? opts.minRow : 0;
   grid.innerHTML = '';
   grid.style.gridTemplateRows = fill
-    ? 'auto repeat(9, minmax(' + minRow + 'px, 1fr))'  /* 화면 꽉 차게 (minRow=0이면 완전 분할) */
-    : 'auto repeat(9, minmax(56px, auto))';            /* 내용에 맞춰 늘어남(글자 안 잘림) */
+    ? 'auto repeat(' + PERIODS.length + ', minmax(' + minRow + 'px, 1fr))'  /* 화면 꽉 차게 (minRow=0이면 완전 분할) */
+    : 'auto repeat(' + PERIODS.length + ', minmax(56px, auto))';            /* 내용에 맞춰 늘어남(글자 안 잘림) */
   grid.className = 'gridc ' + (day ? 'dayview' : 'weekwide') + (compact ? ' compact' : '');
 
   const todaySerial = kstNow().serial;
@@ -466,7 +473,7 @@ function buildWeekGrid(grid, w, opts) {
   if (!day) {
     for (const cm of w.cells) {
       const cls = (cm.d <= todayD && todayD < cm.d + cm.colSpan)
-        ? 'todaybody' + (cm.p + cm.rowSpan === 9 ? ' lastrow' : '') : '';
+        ? 'todaybody' + (cm.p + cm.rowSpan === PERIODS.length ? ' lastrow' : '') : '';
       grid.appendChild(makeCellDiv(cm, 3 + cm.d, 2 + cm.p, cm.colSpan, cm.rowSpan, cls));
     }
   } else {
@@ -478,7 +485,7 @@ function buildWeekGrid(grid, w, opts) {
         for (let pp = cm.p; pp < cm.p + cm.rowSpan; pp++) placed.add(pp);
       }
     }
-    for (let p = 0; p < 9; p++) if (!placed.has(p)) grid.appendChild(makeCellDiv(null, 3, 2 + p, 1, 1, ''));
+    for (let p = 0; p < PERIODS.length; p++) if (!placed.has(p)) grid.appendChild(makeCellDiv(null, 3, 2 + p, 1, 1, ''));
   }
 }
 
@@ -581,11 +588,12 @@ function renderMonth() {
     dt.textContent = ymd.m !== m ? ymd.m + '.' + ymd.d : ymd.d;
     div.appendChild(dt);
     if (w) {
-      /* 시간대 4슬롯: 9–11(교시1·2) / 11–13(3·4) / 14–16(5·6) / 16–18(7·8), 점심 제외 */
+      /* 시간대 4슬롯: 9–11(교시1·2) / 11–13(3·4) / 14–16(5·6) / 16–18(7·8).
+         점심·저녁(brk)은 좁은 달력 칸에서 뺀다 — 수업 행에만 걸치는 칸만 남긴다. */
       const SLOT_PERIODS = [[0, 1], [2, 3], [5, 6], [7, 8]];
       const entries = w.cells
         .filter(c => !c.isEmpty && c.d <= d && d < c.d + c.colSpan)
-        .filter(c => !(c.p === 4 && c.p + c.rowSpan <= 5))
+        .filter(c => PERIODS.slice(c.p, c.p + c.rowSpan).some(p => !p.brk))
         .sort((a, b) => a.p - b.p);
       const slotEntries = [[], [], [], []];
       for (const cm of entries) {
@@ -660,7 +668,8 @@ function showPop(cm) {
   const t = document.createElement('div');
   t.className = 'poptime';
   const pStart = PERIODS[cm.p], pEnd = PERIODS[cm.p + cm.rowSpan - 1];
-  t.textContent = (pStart.no === '점심' ? '점심' : pStart.no + '교시' + (cm.rowSpan > 1 ? '–' + pEnd.no + '교시' : '')) +
+  const pLabel = p => p.brk ? p.no : p.no + '교시';
+  t.textContent = (cm.rowSpan > 1 ? pLabel(pStart) + '–' + pLabel(pEnd) : pLabel(pStart)) +
     ' · ' + pStart.time.slice(0, 5) + '–' + pEnd.time.slice(6);
   body.appendChild(t);
   cm.lines.forEach(ln => {

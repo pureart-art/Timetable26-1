@@ -5,12 +5,12 @@
 /* --- 합성 시트: parseGrid에 먹일 최소 형태의 Sheets API 응답 --- */
 function fakeCellNum(n) { return { effectiveValue: { numberValue: n }, formattedValue: String(n) }; }
 function fakeCellStr(s) { return { formattedValue: s }; }
-/* 헤더 1행(A=라벨, C~I=날짜) + 교시 9행(빈 칸) = 10행 */
+/* 헤더 1행(A=라벨, C~I=날짜) + 교시행(빈 칸). 행 수는 app.js의 PERIODS가 정본 */
 function fakeWeekRows(label, monday) {
   const hdr = { values: [fakeCellStr(label), fakeCellStr('')] };
   for (let d = 0; d < 7; d++) hdr.values.push(fakeCellNum(monday + d));
   const rows = [hdr];
-  for (let p = 0; p < 9; p++) rows.push({ values: [] });
+  for (let p = 0; p < PERIODS.length; p++) rows.push({ values: [] });
   return rows;
 }
 function fakeApi(weeks) {

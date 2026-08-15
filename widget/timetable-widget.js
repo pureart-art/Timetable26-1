@@ -25,6 +25,10 @@
 //      기대게 되지만, 탭해서 도착하는 PWA는 5분 폴링이라 최신도는 거기서 회복된다.
 //      배지만 새로고침으로 남기는 안은 불가 — 격자가 addImage 한 장이라 이미지 안 영역에는
 //      요소별 url을 못 붙이고, 쪼개면 잘림을 막는 contain 스케일 불변식이 깨진다.
+// v20: 저녁(18:00–19:00) 행 추가 → 블록이 9행에서 10행으로. 행 수는 PERIODS 배열 하나에서만
+//      세고(격자 높이·fetch 범위·병합 클램프 전부 파생), 시간열 축약은 PERIODS[].s로 옮겼다.
+//      아직 저녁 행이 없는 주는 1단계가 아는 다음 헤더 행으로 잘라 빈 행으로 남긴다
+//      — 안 그러면 다음 주 날짜가 저녁 칸에 수업처럼 그려진다. 캐시 키 v5→v6.
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -106,9 +110,11 @@ const TWO_WEEK_OK = (() => {
   return f === 'large' && LAYOUT === 'vert';
 })();
 
+/* s = 시간열이 좁을 때 쓰는 한 글자 축약. 이 배열 길이가 블록 높이의 정본. */
 const PERIODS = [
   { no: '1', t1: '09:00' }, { no: '2', t1: '10:00' }, { no: '3', t1: '11:00' }, { no: '4', t1: '12:00' },
-  { no: '점심', t1: '13:00' }, { no: '5', t1: '14:00' }, { no: '6', t1: '15:00' }, { no: '7', t1: '16:00' }, { no: '8', t1: '17:00' },
+  { no: '점심', t1: '13:00', s: '점' }, { no: '5', t1: '14:00' }, { no: '6', t1: '15:00' }, { no: '7', t1: '16:00' }, { no: '8', t1: '17:00' },
+  { no: '저녁', t1: '18:00', s: '저' },
 ];
 const DAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -232,6 +238,8 @@ async function findWeekPicks() {
     /* 시트 날짜가 이미 월요일(serial % 7 === 2)이면 신뢰 — 방학 등 주 공백 허용 */
     if (h.monday % 7 !== 2 && Math.abs(h.monday - ex) > 1) h.monday = ex;
   });
+  /* 다음 주 헤더 행 — 블록이 아직 짧은 주(저녁 행 미추가)에서 그 자리를 안 읽으려고 쓴다 */
+  headers.forEach((h, i) => { h.nextRow = i + 1 < headers.length ? headers[i + 1].row : null; });
   const ts = todaySerial();
   let pi = 0;
   for (let i = 0; i < headers.length; i++) if (ts >= headers[i].monday) pi = i;   // 오늘 이전 시작 중 가장 늦은 주
@@ -245,12 +253,12 @@ async function findWeekPicks() {
   return { picks, ver };
 }
 
-/* 2단계: 이번 주 블록 10행만 서식 포함으로 */
+/* 2단계: 이번 주 블록(헤더 1 + 교시행)만 서식 포함으로 */
 const BLOCK_FIELDS = 'sheets.merges,sheets.data.startRow,' +
   'sheets.data.rowData.values(formattedValue,effectiveFormat.backgroundColor,' +
   'effectiveFormat.textFormat.foregroundColor,effectiveFormat.textFormat.foregroundColorStyle,textFormatRuns)';
-async function loadWeekBlock(headerRow, monday) {
-  const r1 = headerRow + 1, r2 = headerRow + 10;   // 1-based
+async function loadWeekBlock(headerRow, monday, nextRow) {
+  const r1 = headerRow + 1, r2 = r1 + PERIODS.length;   // 1-based: 헤더 + 교시행
   const params = 'ranges=' + encodeURIComponent(TAB + '!A' + r1 + ':I' + r2) +
     '&includeGridData=true&fields=' + encodeURIComponent(BLOCK_FIELDS);
   const json = await apiGetWithFallback(params);
@@ -276,14 +284,19 @@ async function loadWeekBlock(headerRow, monday) {
   }
   const cells = [];
   const covered = new Set();
-  for (let p = 0; p < 9; p++) {
+  /* 이 주 블록이 아직 짧으면(예: 저녁 행 미추가) 남는 행은 다음 주 헤더다 —
+     날짜를 수업으로 그리지 않도록 빈 행으로 남긴다. 다음 헤더를 모르면 그대로 다 읽는다. */
+  const maxP = (typeof nextRow === 'number')
+    ? Math.min(PERIODS.length, nextRow - headerRow - 1) : PERIODS.length;
+  for (let p = 0; p < PERIODS.length; p++) {
+    const outOfBlock = p >= maxP;
     for (let d = 0; d < 7; d++) {
       if (covered.has(p + ',' + d)) continue;
       const gr = startRow + 1 + p, gc = 2 + d;   // 전역 좌표
-      const m = mergeAt.get(gr + ',' + gc);
+      const m = outOfBlock ? null : mergeAt.get(gr + ',' + gc);
       let rowSpan = 1, colSpan = 1;
       if (m) {
-        const rEnd = Math.min(m.endRowIndex, startRow + 10);
+        const rEnd = Math.min(m.endRowIndex, startRow + 1 + PERIODS.length);
         const cEnd = Math.min(m.endColumnIndex, 9);
         if (m.startRowIndex < gr || m.startColumnIndex < gc) {
           if (m.startRowIndex >= startRow + 1 && m.startColumnIndex >= 2) continue;
@@ -294,7 +307,7 @@ async function loadWeekBlock(headerRow, monday) {
           for (let dd = d; dd < d + colSpan; dd++)
             if (pp !== p || dd !== d) covered.add(pp + ',' + dd);
       }
-      const cell = cellAt(1 + p, gc);
+      const cell = outOfBlock ? null : cellAt(1 + p, gc);
       const fmt = (cell && cell.effectiveFormat) || {};
       const bgRaw = colorToHex(fmt.backgroundColor);
       const defColor = colorToHex(fgOf(fmt.textFormat)) || '#000000';
@@ -323,7 +336,7 @@ async function loadWeeks() {
      배치(세로/가로)는 그리는 방법일 뿐 담기는 주가 같으므로 일부러 키에 안 넣는다
      — 캐시 키는 '무엇을 담았나'로 잡는다. */
   const cachePath = fm.joinPath(fm.cacheDirectory(),
-    'timetable-week-v5-' + WEEK_OFFSET + (TWO_WEEKS ? 'x2' : '') + '.json');
+    'timetable-week-v6-' + WEEK_OFFSET + (TWO_WEEKS ? 'x2' : '') + '.json');
   /* 캐시를 그릴 땐 어느 주인지 반드시 대조한다.
      expected(월요일 목록)를 아는 경우(1단계 성공) 불일치 캐시는 버린다 — 틀린 주를 그리는 건 실패다.
      1단계까지 실패해 대조 자체가 불가한 경우는 '판정 실패'로 구분해 '오프?'로 표시. */
@@ -342,7 +355,7 @@ async function loadWeeks() {
       const h = await findWeekPicks();
       expected = h.picks.map(p => p.monday);
       /* 주 블록은 병렬 — 2주여도 실행 예산은 1주와 거의 같게 */
-      const weeks = await Promise.all(h.picks.map(p => loadWeekBlock(p.row, p.monday)));
+      const weeks = await Promise.all(h.picks.map(p => loadWeekBlock(p.row, p.monday, p.nextRow)));
       weeks.forEach(w => { w.ver = h.ver; });
       return weeks;
     })();
@@ -375,7 +388,8 @@ function drawWeekGrid(ctx, week, staleTag, ox, oy, W, H) {
   const HDR = big ? 24 : 18;
   const timeW = W >= 600 ? 56 : (W >= 300 ? 26 : 20);
   const dayW = (innerW - timeW) / 7;
-  const rowH = (innerH - HDR) / 9;
+  const rowH = (innerH - HDR) / PERIODS.length;
+  const gridH = HDR + PERIODS.length * rowH;   /* 헤더+전체 교시행 높이 — 한 곳에서만 센다 */
   const fTitle = Math.max(6, Math.min(11, Math.floor(rowH * 0.36)));
   const fHdr = Math.max(7, Math.min(12, Math.floor(HDR * 0.46)));
   const line = new Color('#CFCCC4');
@@ -396,7 +410,7 @@ function drawWeekGrid(ctx, week, staleTag, ox, oy, W, H) {
     ctx.drawTextInRect(DAY_NAMES[d] + (dayW >= 38 ? ' ' + ymd.m + '.' + ymd.d : ''), new Rect(gx(d), PY + (HDR - fHdr) / 2 - 1, dayW, fHdr + 4));
   }
   ctx.setFillColor(new Color('#F1EFE8'));
-  ctx.fillRect(new Rect(PX, PY, timeW, HDR + 9 * rowH));
+  ctx.fillRect(new Rect(PX, PY, timeW, gridH));
   /* 코너 칸: 주차 라벨 + 시트 버전 (예: 11주 / v34) */
   {
     const f1 = big ? 9 : 7, f2 = big ? 7 : 6;
@@ -410,7 +424,7 @@ function drawWeekGrid(ctx, week, staleTag, ox, oy, W, H) {
       ctx.drawTextInRect(week.ver, new Rect(PX, PY + 3 + f1 + 2, timeW, f2 + 3));
     }
   }
-  for (let p = 0; p < 9; p++) {
+  for (let p = 0; p < PERIODS.length; p++) {
     ctx.setTextAlignedCenter();
     ctx.setFont(Font.boldSystemFont(Math.max(6, Math.min(10, Math.floor(rowH * 0.32)))));
     ctx.setTextColor(new Color('#5f5e5a'));
@@ -422,7 +436,7 @@ function drawWeekGrid(ctx, week, staleTag, ox, oy, W, H) {
       ctx.setTextColor(new Color('#8a897f'));
       ctx.drawTextInRect(PERIODS[p].t1, new Rect(PX, gy(p) + rowH / 2 + 1, timeW, 10));
     } else {
-      ctx.drawTextInRect(PERIODS[p].no === '점심' ? '점' : PERIODS[p].no, new Rect(PX, gy(p) + rowH / 2 - 5, timeW, 11));
+      ctx.drawTextInRect(PERIODS[p].s || PERIODS[p].no, new Rect(PX, gy(p) + rowH / 2 - 5, timeW, 11));
     }
   }
 
@@ -480,9 +494,9 @@ function drawWeekGrid(ctx, week, staleTag, ox, oy, W, H) {
       }
     }
   }
-  strokeRectPx(PX, PY, timeW + 7 * dayW, HDR + 9 * rowH);
+  strokeRectPx(PX, PY, timeW + 7 * dayW, gridH);
   if (todayD >= 0) {
-    strokeRectPx(gx(todayD) + 1, PY + 1, dayW - 2, HDR + 9 * rowH - 2, new Color('#2E75B6'), 2);
+    strokeRectPx(gx(todayD) + 1, PY + 1, dayW - 2, gridH - 2, new Color('#2E75B6'), 2);
   }
 }
 
