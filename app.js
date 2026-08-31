@@ -389,7 +389,8 @@ function makeCellDiv(cellModel, gridCol, gridRow, colSpan, rowSpan, extraCls) {
       inner.className = 'cfit';
       cellModel.lines.forEach(ln => {
         const el = document.createElement('div');
-        el.className = lineClass(ln.text);
+        /* 점심·저녁 안내줄(수업 배경색 없는 brk 행)은 라벨 패턴이어도 본문 크기+굵게 */
+        el.className = (cellModel.isBreak && !cellModel.bgRaw) ? 'l1 brkline' : lineClass(ln.text);
         el.textContent = ln.text;
         el.style.color = ln.color || '#000000';
         inner.appendChild(el);
