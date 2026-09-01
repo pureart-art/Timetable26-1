@@ -1,7 +1,9 @@
 /* =========================================================
    공지사항 — 시간표와 완전히 분리된 데이터 경로.
-   시간표는 includeGridData(대용량)로 읽지만 공지는 values.get(~2KB)이라
-   서로의 실패에 영향을 주지 않는다. 이 파일의 예외는 전부 자체적으로 삼킨다.
+   시간표는 전체 격자 includeGridData(대용량)로 읽지만 공지는 공지 탭만
+   ranges+fields로 좁힌 spreadsheets.get(수 KB)이라 서로의 실패에 영향을
+   주지 않는다. values.get을 안 쓰는 이유: 셀 안 부분 볼드(textFormatRuns)가
+   spreadsheets.get에만 실려 온다. 이 파일의 예외는 전부 자체적으로 삼킨다.
    ========================================================= */
 'use strict';
 
@@ -42,17 +44,68 @@ function noticeDate(v) {
   return '';
 }
 
-/* 시트 행 배열 → 정렬된 공지 항목. 날짜·제목이 둘 다 비면 버린다. */
+/* 시트 행 배열 → 정렬된 공지 항목. 날짜·제목이 둘 다 비면 버린다.
+   행은 [날짜, 제목, 내용] 또는 그리드 경로가 볼드 세그먼트를 붙인 [날짜, 제목, '', segs].
+   segs가 있으면 내용 문자열은 segs에서 파생한다 — 같은 사실을 두 곳에서 재유도하지 않는다. */
 function parseNotices(values) {
-  const items = (values || []).map((row, i) => ({
-    date: noticeDate(row && row[0]),
-    title: String(row && row[1] != null ? row[1] : '').trim(),
-    body: String(row && row[2] != null ? row[2] : '').trim(),
-    _i: i,
-  })).filter(n => n.date || n.title);
+  const items = (values || []).map((row, i) => {
+    const segs = (row && Array.isArray(row[3])) ? row[3] : null;
+    return {
+      date: noticeDate(row && row[0]),
+      title: String(row && row[1] != null ? row[1] : '').trim(),
+      body: segs ? segs.map(s => s.t).join('') : String(row && row[2] != null ? row[2] : '').trim(),
+      bodySegs: segs,
+      _i: i,
+    };
+  }).filter(n => n.date || n.title);
   /* 날짜 내림차순. ISO 문자열이라 사전순 = 시간순. 동률이면 시트 행 순서 유지. */
   items.sort((a, b) => (a.date === b.date ? a._i - b._i : (a.date < b.date ? 1 : -1)));
   return items;
+}
+
+/* 그리드 셀 → 볼드 세그먼트 [{t, b}]. 런이 없으면 셀 서식 통짜, 첫 런 앞 구간은 셀 기본 서식,
+   런에 미지정인 속성은 셀 서식을 상속한다(Sheets API 계약). 같은 서식끼리 합치고 앞뒤 공백은 걷는다. */
+function noticeSegs(cell) {
+  const ev = (cell && cell.effectiveValue) || {};
+  const text = (typeof ev.stringValue === 'string') ? ev.stringValue
+    : (cell && cell.formattedValue != null ? String(cell.formattedValue) : '');
+  if (!text) return [];
+  const cellBold = !!(cell.effectiveFormat && cell.effectiveFormat.textFormat && cell.effectiveFormat.textFormat.bold);
+  const runs = cell.textFormatRuns || [];
+  const segs = [];
+  const push = (t, b) => {
+    if (!t) return;
+    if (segs.length && segs[segs.length - 1].b === b) segs[segs.length - 1].t += t;
+    else segs.push({ t: t, b: b });
+  };
+  if (!runs.length) push(text, cellBold);
+  else {
+    push(text.slice(0, runs[0].startIndex || 0), cellBold);
+    runs.forEach((r, i) => {
+      const from = r.startIndex || 0;
+      const to = (i + 1 < runs.length) ? (runs[i + 1].startIndex || 0) : text.length;
+      const b = (r.format && r.format.bold !== undefined) ? !!r.format.bold : cellBold;
+      push(text.slice(from, to), b);
+    });
+  }
+  if (segs.length) {
+    segs[0].t = segs[0].t.replace(/^\s+/, '');
+    segs[segs.length - 1].t = segs[segs.length - 1].t.replace(/\s+$/, '');
+  }
+  return segs.filter(s => s.t);
+}
+
+/* 그리드 행 → parseNotices가 먹는 [날짜, 제목, '', segs] 행 */
+function gridNoticeRow(r) {
+  const v = (r && r.values) || [];
+  const a = v[0] || {}, b = v[1] || {}, c = v[2] || {};
+  const ev = a.effectiveValue || {};
+  const dateRaw = (ev.numberValue !== undefined) ? ev.numberValue
+    : (ev.stringValue !== undefined) ? ev.stringValue
+    : (a.formattedValue != null ? a.formattedValue : '');
+  const title = (b.effectiveValue && typeof b.effectiveValue.stringValue === 'string')
+    ? b.effectiveValue.stringValue : (b.formattedValue != null ? String(b.formattedValue) : '');
+  return [dateRaw, title, '', noticeSegs(c)];
 }
 
 function latestNoticeDate(items) {
@@ -87,9 +140,11 @@ function writeNoticeCache(items) {
 }
 
 function noticeUrl() {
+  /* fields로 셀당 값·셀 볼드·볼드 런만 받는다 — 응답은 values.get 시절과 같은 수 KB급 */
   return 'https://sheets.googleapis.com/v4/spreadsheets/' + CONFIG.SHEET_ID +
-    '/values/' + encodeURIComponent(NOTICE.TAB + '!' + NOTICE.RANGE) +
-    '?key=' + CONFIG.API_KEY + '&valueRenderOption=UNFORMATTED_VALUE';
+    '?key=' + CONFIG.API_KEY +
+    '&ranges=' + encodeURIComponent(NOTICE.TAB + '!' + NOTICE.RANGE) +
+    '&fields=' + encodeURIComponent('sheets.data.rowData.values(formattedValue,effectiveValue,effectiveFormat.textFormat.bold,textFormatRuns(startIndex,format.bold))');
 }
 
 async function fetchNotices() {
@@ -101,7 +156,9 @@ async function fetchNotices() {
     if (res.status === 400 || res.status === 404) return { status: 'no-tab', items: [] };
     if (!res.ok) return { status: 'error', items: [] };
     const json = await res.json();
-    const items = parseNotices(json && json.values);
+    const sh = json && json.sheets && json.sheets[0];
+    const rowData = (sh && sh.data && sh.data[0] && sh.data[0].rowData) || [];
+    const items = parseNotices(rowData.map(gridNoticeRow));
     return { status: items.length ? 'ok' : 'empty', items };
   } catch (e) {
     return { status: 'error', items: [] };
@@ -191,7 +248,13 @@ function renderNoticePanel() {
     }
     if (n.body) {
       const b = document.createElement('div');
-      b.className = 'ntcbody'; b.textContent = n.body;
+      b.className = 'ntcbody';
+      /* 볼드 세그먼트를 <b>로. 구버전 캐시 항목(segs 없음)은 평문 한 덩어리로 — innerHTML 금지 */
+      const segs = (n.bodySegs && n.bodySegs.length) ? n.bodySegs : [{ t: n.body, b: false }];
+      for (const s of segs) {
+        if (s.b) { const strong = document.createElement('b'); strong.textContent = s.t; b.appendChild(strong); }
+        else b.appendChild(document.createTextNode(s.t));
+      }
       item.appendChild(b);
     }
     body.appendChild(item);

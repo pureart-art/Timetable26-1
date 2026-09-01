@@ -236,6 +236,45 @@ function checkNoticeData() {
   });
   out.push({ name: '공지 · 아는 공지가 없으면 안읽음이 아니다', pass: hasUnreadNotices([]) === false, detail: String(hasUnreadNotices([])) });
 
+  /* 볼드 세그먼트: 첫 런 앞 구간=셀 기본, 런 경계, 미지정 속성은 셀 서식 상속 */
+  const segCell = {
+    formattedValue: '공지: 시험 연기 안내',
+    effectiveValue: { stringValue: '공지: 시험 연기 안내' },
+    textFormatRuns: [
+      { format: {} },
+      { startIndex: 4, format: { bold: true } },
+      { startIndex: 9, format: { bold: false } },
+    ],
+  };
+  const segsGot = noticeSegs(segCell);
+  out.push({
+    name: '공지 · textFormatRuns가 볼드 세그먼트로 바뀐다',
+    pass: JSON.stringify(segsGot) === JSON.stringify([
+      { t: '공지: ', b: false }, { t: '시험 연기', b: true }, { t: ' 안내', b: false },
+    ]),
+    detail: JSON.stringify(segsGot),
+  });
+  out.push({
+    name: '공지 · 셀 통짜 볼드·병합·앞뒤 공백 걷기',
+    pass: JSON.stringify(noticeSegs({ formattedValue: '전부 굵게', effectiveValue: { stringValue: '전부 굵게' }, effectiveFormat: { textFormat: { bold: true } } })) === JSON.stringify([{ t: '전부 굵게', b: true }])
+       && JSON.stringify(noticeSegs({ effectiveValue: { stringValue: '  x  ' } })) === JSON.stringify([{ t: 'x', b: false }])
+       && noticeSegs({ effectiveValue: { stringValue: 'ab' }, textFormatRuns: [{ format: { bold: true } }, { startIndex: 1, format: { bold: true } }] }).length === 1,
+    detail: JSON.stringify(noticeSegs({ effectiveValue: { stringValue: '  x  ' } })),
+  });
+
+  /* 그리드 행 → 항목: 날짜 시리얼·본문은 segs에서 파생(두 곳 재유도 금지) */
+  const gitems = parseNotices([gridNoticeRow({ values: [
+    { effectiveValue: { numberValue: 46246 } },
+    { formattedValue: '제목', effectiveValue: { stringValue: '제목' } },
+    segCell,
+  ] })]);
+  out.push({
+    name: '공지 · 그리드 행이 날짜·본문·segs로 파싱된다',
+    pass: gitems.length === 1 && gitems[0].date === '2026-08-12' && gitems[0].title === '제목'
+       && gitems[0].body === '공지: 시험 연기 안내' && gitems[0].bodySegs.length === 3,
+    detail: JSON.stringify(gitems[0]),
+  });
+
   /* 상태 계약 */
   out.push({
     name: '공지 · noticeState 초기 형태',
@@ -304,6 +343,20 @@ function checkNoticeUI() {
   const dotOff = $$('ntcDot').hidden && $$('btnMenuDot').hidden;
   $$('ntcClose').click();
   out.push({ name: '공지UI · 열면 열리고 읽음 처리된다', pass: opened && dotOff, detail: 'opened=' + opened + ' dotOff=' + dotOff });
+
+  /* 내용의 볼드 세그먼트가 <b>로 그려지고, 구 캐시처럼 segs 없는 항목은 평문 그대로 */
+  const boldItems = parseNotices([
+    ['2026-08-13', '볼드 공지', '', [{ t: '앞 ', b: false }, { t: '굵게', b: true }, { t: ' 뒤', b: false }]],
+    ['2026-08-12', '평문 공지', '그냥 텍스트'],
+  ]);
+  setState('ok', boldItems, new Date());
+  const bEls = $$('ntcBody').querySelectorAll('.ntcbody b');
+  out.push({
+    name: '공지UI · 볼드 세그먼트가 <b>로, 평문은 그대로',
+    pass: bEls.length === 1 && bEls[0].textContent === '굵게'
+       && text().indexOf('앞 굵게 뒤') >= 0 && text().indexOf('그냥 텍스트') >= 0,
+    detail: 'bCount=' + bEls.length + ' first=' + (bEls[0] ? bEls[0].textContent : '-'),
+  });
 
   /* 6개 이상이면 접힌다 */
   const many = parseNotices([
