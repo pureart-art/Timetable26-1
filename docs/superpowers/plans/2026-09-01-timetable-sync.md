@@ -318,7 +318,7 @@ clasp login
 cd "C:/claude/timetable-sync"
 clasp create --type standalone --title "timetable-sync" --rootDir .
 clasp push --force
-clasp open
+clasp open-script
 ```
 
 `clasp create`가 `.clasp.json`을 만든다. `appsscript.json`이 이미 있으면 덮어쓰기를 묻는데 **우리 것을 유지**한다.
@@ -326,7 +326,7 @@ clasp open
 - [ ] **Step 9: GY가 diagnose() 1회 실행 — 게이트**
 
 GY에게 요청할 것:
-1. `clasp open`으로 열린 편집기에서 함수 선택창을 `diagnose`로 바꾸고 **실행**
+1. `clasp open-script`으로 열린 편집기에서 함수 선택창을 `diagnose`로 바꾸고 **실행**
 2. 첫 실행이라 권한 승인 팝업이 뜬다: 계정 선택 → "Google에서 확인하지 않은 앱" → **고급 → timetable-sync(안전하지 않음)으로 이동 → 허용** (draft-radar SETUP.md와 같은 화면)
 3. **실행 로그 전체를 복사해서 전달**
 
