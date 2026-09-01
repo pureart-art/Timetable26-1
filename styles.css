@@ -112,7 +112,18 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 .hlbtn svg{display:block}
 .hltitle{font-size:15px;font-weight:600;margin-bottom:8px}
 .hldesc{font-size:12.5px;color:#73726c;text-align:left;line-height:1.55;margin-bottom:10px}
-.hlinput{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:14px;line-height:1.5;border:0.5px solid #b5b2aa;border-radius:8px;padding:8px 10px;resize:vertical}
+.hlrow{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.hlname{flex:1;min-width:0;box-sizing:border-box;font:inherit;font-size:14px;border:0.5px solid #b5b2aa;border-radius:8px;padding:8px 10px}
+.hlseg{display:flex;flex:none;border:0.5px solid #b5b2aa;border-radius:8px;overflow:hidden}
+.hlseg button{font:inherit;font-size:12.5px;padding:8px 9px;border:0;background:#fff;color:#73726c;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.hlseg button.sel{background:#2E75B6;color:#fff;font-weight:600}
+.hlsw{flex:none;width:30px;height:30px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #b5b2aa;cursor:pointer;padding:0}
+.hldel{flex:none;width:30px;height:30px;border-radius:8px;border:0.5px solid #b5b2aa;background:#f4f2ec;color:#C04848;font-size:16px;font-weight:700;line-height:1;cursor:pointer;padding:0}
+.hlpal{display:flex;gap:8px;justify-content:center;padding:2px 0 10px;flex-wrap:wrap}
+.hlpal[hidden]{display:none}
+.hlpal button{width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #cfccc4;cursor:pointer;padding:0}
+.hlpal button.sel{box-shadow:0 0 0 2px #1f1e1c}
+.sheetpop-inner .nbtn.hladd{margin-top:2px;background:#f4f2ec;color:#2E75B6;font-weight:700}
 .sheetpop-inner .nbtn.hlclose{margin-top:8px;background:#f4f2ec}
 
 /* ===== 3줄 메뉴 ===== */

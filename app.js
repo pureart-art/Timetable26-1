@@ -21,34 +21,56 @@ const CONFIG = {
 };
 
 /* ===== 개인 하이라이트 (기기별) ===== */
-const HL_KEY = 'tt_hl';       // localStorage 키
-const HL_RED = '#FF0000';     // 개인/시험 공통 빨강
+const HL_KEY  = 'tt_hl';      // 구버전 키: 키워드 여러 줄 텍스트 — 이행용으로만 읽고 다시 쓰지 않는다
+const HL_KEY2 = 'tt_hl2';     // 신버전 키: JSON [{name, type:'stu'|'prof', color}]
+const HL_RED  = '#FF0000';    // 기본색 (구버전 이행 시 그대로 유지 — 기존 사용자 화면 무변화)
+const HL_COLORS = ['#FF0000', '#E8710A', '#188038', '#00838F', '#1A73E8', '#7B1FA2', '#C2185B', '#795548'];
 function normHL(s) { return (s || '').replace(/\s+/g, '').toLowerCase(); }
-function getKeywords() {
-  let raw = '';
-  try { raw = localStorage.getItem(HL_KEY) || ''; } catch (e) {}
+/* tt_hl2가 존재하면(빈 배열 포함) 그것만 신뢰 — 전부 지우고 저장한 상태가 구버전으로 되살아나면 안 됨.
+   없으면 구 tt_hl 키워드를 항목으로 파생: '('로 시작 = 교수 관례((이름, 과)), 아니면 학생. */
+function getEntries() {
+  let raw2 = null, raw = '';
+  try { raw2 = localStorage.getItem(HL_KEY2); raw = localStorage.getItem(HL_KEY) || ''; } catch (e) {}
+  if (raw2 !== null) {
+    try {
+      const a = JSON.parse(raw2);
+      if (Array.isArray(a)) {
+        return a.filter(en => en && en.name && en.color && (en.type === 'stu' || en.type === 'prof'));
+      }
+    } catch (e) {}
+    return [];
+  }
   /* 개행으로만 분리 — 교수 키워드 '(이름, 과)'가 쉼표를 포함하므로 쉼표로 쪼개면 안 됨 */
-  return raw.split('\n').map(s => s.trim()).filter(Boolean);
+  return raw.split('\n').map(s => s.trim()).filter(Boolean)
+    .map(k => ({ name: k, type: k.startsWith('(') ? 'prof' : 'stu', color: HL_RED }));
 }
-function matchKeyword(text, keywords) {
-  if (!text || !keywords.length) return false;
-  const t = normHL(text);
-  return keywords.some(k => { const n = normHL(k); return n && t.includes(n); });
+/* 항목이 이 줄에 적용될 색. 대상 줄은 타입으로 좁힌다(학생=초안자/검안자 l3, 교수=괄호줄 l2 —
+   판정은 lineClass 하나로, 과목명에 성씨가 우연히 들어가는 오탐 차단).
+   한 줄에 여러 항목이 걸리면(초안자/검안자 둘 다 강조 등) 목록 위 항목 우선. */
+function entryColorFor(text, entries) {
+  if (!text || !entries.length) return null;
+  const cls = lineClass(text), t = normHL(text);
+  for (const en of entries) {
+    if ((en.type === 'prof' ? 'l2' : 'l3') !== cls) continue;
+    const n = normHL(en.name);
+    if (n && t.includes(n)) return en.color;
+  }
+  return null;
 }
-/* 각 줄 원색을 line._base에 보존하고, 키워드 매칭 줄만 빨강으로. 키워드 제거 시 _base로 복원(idempotent). */
-function applyHighlights(weeks, keywords) {
+/* 각 줄 원색을 line._base에 보존하고, 매칭 줄만 항목 색으로. 항목 제거 시 _base로 복원(idempotent). */
+function applyHighlights(weeks, entries) {
   for (const w of weeks) {
     for (const c of w.cells) {
       for (const ln of c.lines) {
         if (ln._base === undefined) ln._base = ln.color;
-        ln.color = (keywords.length && matchKeyword(ln.text, keywords)) ? HL_RED : ln._base;
+        ln.color = entryColorFor(ln.text, entries) || ln._base;
       }
     }
   }
 }
-function saveKeywords(raw) {
-  try { localStorage.setItem(HL_KEY, raw); } catch (e) {}
-  applyHighlights(state.weeks, getKeywords());
+function saveEntries(entries) {
+  try { localStorage.setItem(HL_KEY2, JSON.stringify(entries)); } catch (e) {}
+  applyHighlights(state.weeks, getEntries());
   render();
 }
 const FIELDS = 'properties.title,sheets.properties,sheets.merges,' +
@@ -683,6 +705,90 @@ function showPop(cm) {
   $('sheetpop').hidden = false;
 }
 
+/* ===== 하이라이트 편집기: 행 = [이름][학생|교수][색][−], 팔레트는 행 아래 접이식 ===== */
+function hlAddRow(entry) {
+  const rows = $('hlRows');
+  const row = document.createElement('div');
+  row.className = 'hlrow';
+  row.dataset.type = entry.type;
+  row.dataset.color = entry.color;
+
+  const name = document.createElement('input');
+  name.type = 'text'; name.className = 'hlname';
+  name.placeholder = '강조할 이름'; name.value = entry.name || '';
+  name.setAttribute('autocomplete', 'off');
+  row.appendChild(name);
+
+  const seg = document.createElement('div'); seg.className = 'hlseg';
+  [['stu', '학생'], ['prof', '교수']].forEach(pair => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = pair[1];
+    if (entry.type === pair[0]) b.classList.add('sel');
+    b.addEventListener('click', () => {
+      row.dataset.type = pair[0];
+      Array.prototype.forEach.call(seg.children, x => x.classList.toggle('sel', x === b));
+    });
+    seg.appendChild(b);
+  });
+  row.appendChild(seg);
+
+  const sw = document.createElement('button');
+  sw.type = 'button'; sw.className = 'hlsw'; sw.title = '색 고르기';
+  sw.style.background = entry.color;
+  row.appendChild(sw);
+
+  const del = document.createElement('button');
+  del.type = 'button'; del.className = 'hldel'; del.textContent = '−'; del.title = '이 줄 삭제';
+  row.appendChild(del);
+
+  const pal = document.createElement('div');
+  pal.className = 'hlpal'; pal.hidden = true;
+  const COLOR_NAMES = ['빨강', '주황', '초록', '청록', '파랑', '보라', '핑크', '갈색'];
+  HL_COLORS.forEach((col, i) => {
+    const d = document.createElement('button');
+    d.type = 'button'; d.style.background = col;
+    d.title = COLOR_NAMES[i]; d.setAttribute('aria-label', COLOR_NAMES[i]);
+    d.classList.toggle('sel', col === entry.color);
+    d.addEventListener('click', () => {
+      row.dataset.color = col;
+      sw.style.background = col;
+      Array.prototype.forEach.call(pal.children, x => x.classList.toggle('sel', x === d));
+      pal.hidden = true;
+    });
+    pal.appendChild(d);
+  });
+  sw.addEventListener('click', () => {
+    const wasHidden = pal.hidden;
+    rows.querySelectorAll('.hlpal').forEach(p => { p.hidden = true; });  /* 팔레트는 한 번에 하나만 */
+    pal.hidden = !wasHidden;
+  });
+  del.addEventListener('click', () => {
+    row.remove(); pal.remove();
+    if (!rows.querySelector('.hlrow')) hlAddRow({ name: '', type: 'stu', color: HL_COLORS[0] });
+  });
+
+  rows.appendChild(row);
+  rows.appendChild(pal);
+}
+function hlNextColor() {
+  const used = Array.prototype.map.call($('hlRows').querySelectorAll('.hlrow'), r => r.dataset.color);
+  return HL_COLORS.find(c => used.indexOf(c) < 0) || HL_COLORS[used.length % HL_COLORS.length];
+}
+function hlReadRows() {
+  return Array.prototype.map.call($('hlRows').querySelectorAll('.hlrow'), r => ({
+    name: r.querySelector('.hlname').value.trim(),
+    type: r.dataset.type,
+    color: r.dataset.color,
+  })).filter(en => en.name);
+}
+function openHlEditor() {
+  const rows = $('hlRows'); rows.innerHTML = '';
+  const entries = getEntries();
+  if (entries.length) entries.forEach(hlAddRow);
+  else hlAddRow({ name: '', type: 'stu', color: HL_COLORS[0] });
+  $('hlpop').hidden = false;
+}
+
 /* ===== 이동 ===== */
 function navDelta(dir) {
   if (state.view === 'month') {
@@ -716,7 +822,7 @@ function applyData(json, initView) {
   const changed = sig !== state.dataSig;
   state.dataSig = sig;
   state.weeks = weeks;
-  applyHighlights(state.weeks, getKeywords());
+  applyHighlights(state.weeks, getEntries());
   if (initView) {
     gotoToday();
     const n = kstNow();
@@ -774,19 +880,15 @@ function bindUI() {
   $('btnMenu').addEventListener('click', openMenu);
   $('menuClose').addEventListener('click', closeMenu);
   $('menupop').addEventListener('click', e => { if (e.target === $('menupop')) closeMenu(); });
-  $('miHl').addEventListener('click', () => {
-    closeMenu();
-    let raw = ''; try { raw = localStorage.getItem(HL_KEY) || ''; } catch (e) {}
-    $('hlInput').value = raw;
-    $('hlpop').hidden = false;
-  });
+  $('miHl').addEventListener('click', () => { closeMenu(); openHlEditor(); });
+  $('hlAdd').addEventListener('click', () => { hlAddRow({ name: '', type: 'stu', color: hlNextColor() }); });
   $('miNtc').addEventListener('click', () => {
     closeMenu();
     if (typeof openNotices === 'function') openNotices();
   });
   /* notices.js가 로드되지 않았어도 시간표는 떠야 한다 — bindUI()는 첫 렌더보다 먼저 돈다 */
   if (typeof bindNotices === 'function') bindNotices();
-  $('hlSave').addEventListener('click', () => { saveKeywords($('hlInput').value); $('hlpop').hidden = true; });
+  $('hlSave').addEventListener('click', () => { saveEntries(hlReadRows()); $('hlpop').hidden = true; });
   $('hlClose').addEventListener('click', () => { $('hlpop').hidden = true; });
   $('hlpop').addEventListener('click', e => { if (e.target === $('hlpop')) $('hlpop').hidden = true; });
 

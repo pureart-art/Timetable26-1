@@ -331,8 +331,94 @@ function checkNoticeUI() {
   return out;
 }
 
+/* --- 개인 하이라이트 v2: 이행·타입 범위·우선순위·멱등 복원.
+       localStorage 두 키를 건드리므로 반드시 원상복구한다(실기기에서 돌려도 무해해야 함). --- */
+function checkHighlights() {
+  const out = [];
+  const KEYS = [HL_KEY, HL_KEY2];
+  const saved = {};
+  KEYS.forEach(k => { saved[k] = localStorage.getItem(k); });
+  try {
+    /* 1) 구버전 이행: '(' 시작 = 교수, 그 외 = 학생, 색은 기존 빨강 */
+    localStorage.removeItem(HL_KEY2);
+    localStorage.setItem(HL_KEY, '이강윤\n(정아리, Nuc Med)\n');
+    const mig = getEntries();
+    out.push({
+      name: '구 tt_hl 키워드가 학생/교수 항목으로 이행된다',
+      pass: mig.length === 2 && mig[0].type === 'stu' && mig[0].name === '이강윤' && mig[0].color === HL_RED &&
+            mig[1].type === 'prof' && mig[1].name === '(정아리, Nuc Med)',
+      detail: JSON.stringify(mig),
+    });
+
+    /* 2) tt_hl2가 존재하면(빈 배열 포함) 구버전을 무시한다 — 전부 삭제 후 저장이 유지돼야 함 */
+    localStorage.setItem(HL_KEY2, '[]');
+    out.push({
+      name: '빈 tt_hl2가 구 tt_hl보다 우선한다',
+      pass: getEntries().length === 0,
+      detail: JSON.stringify(getEntries()),
+    });
+
+    /* 3) 깨진 tt_hl2는 빈 목록으로 (구버전 폴백 금지 — 반쯤 이행된 상태로 안 돌아감) */
+    localStorage.setItem(HL_KEY2, '{broken');
+    out.push({ name: '깨진 tt_hl2는 빈 목록', pass: getEntries().length === 0, detail: localStorage.getItem(HL_KEY2) });
+
+    /* 4) 타입이 대상 줄을 좁힌다: 학생=초안자/검안자 줄(l3)만, 교수=괄호줄(l2)만 */
+    const stu = [{ name: '이강윤', type: 'stu', color: '#1A73E8' }];
+    const prof = [{ name: '(정아리, Nuc Med)', type: 'prof', color: '#188038' }];
+    out.push({
+      name: '학생 항목은 초안자/검안자 줄에서만 매칭된다',
+      pass: entryColorFor('초안: 이강윤/박정연', stu) === '#1A73E8' &&
+            entryColorFor('(이강윤, EM)', stu) === null &&
+            entryColorFor('이강윤개론 총론', stu) === null,
+      detail: [entryColorFor('초안: 이강윤/박정연', stu), entryColorFor('(이강윤, EM)', stu), entryColorFor('이강윤개론 총론', stu)].join(' | '),
+    });
+    out.push({
+      name: '교수 항목은 괄호줄에서만 매칭된다',
+      pass: entryColorFor('(정아리, Nuc Med)', prof) === '#188038' &&
+            entryColorFor('초안: 정아리/홍길동', prof) === null,
+      detail: [entryColorFor('(정아리, Nuc Med)', prof), entryColorFor('초안: 정아리/홍길동', prof)].join(' | '),
+    });
+
+    /* 5) 한 줄에 두 항목이 걸리면 목록 위 항목 우선 (초안자/검안자 한 줄에 두 명) */
+    const both = [
+      { name: '박정연', type: 'stu', color: '#7B1FA2' },
+      { name: '이현서', type: 'stu', color: '#C2185B' },
+    ];
+    out.push({
+      name: '겹칠 때 목록 위 항목 색이 이긴다',
+      pass: entryColorFor('검안: 이현서/박정연', both) === '#7B1FA2',
+      detail: String(entryColorFor('검안: 이현서/박정연', both)),
+    });
+
+    /* 6) applyHighlights 멱등 복원: 항목 제거 시 원색으로 돌아온다 */
+    const weeks = [{ cells: [{ lines: [
+      { text: '초안: 이강윤/박정연', color: '#2E75B6' },
+      { text: '(정아리, Nuc Med)', color: '#555555' },
+      { text: '해부학 총론', color: '#000000' },
+    ] }] }];
+    applyHighlights(weeks, stu.concat(prof));
+    const colored = weeks[0].cells[0].lines.map(l => l.color);
+    applyHighlights(weeks, []);
+    const restored = weeks[0].cells[0].lines.map(l => l.color);
+    out.push({
+      name: '항목 적용 후 제거하면 원색으로 복원된다',
+      pass: JSON.stringify(colored) === JSON.stringify(['#1A73E8', '#188038', '#000000']) &&
+            JSON.stringify(restored) === JSON.stringify(['#2E75B6', '#555555', '#000000']),
+      detail: 'colored ' + JSON.stringify(colored) + ' restored ' + JSON.stringify(restored),
+    });
+  } finally {
+    KEYS.forEach(k => {
+      try {
+        if (saved[k] === null) localStorage.removeItem(k);
+        else localStorage.setItem(k, saved[k]);
+      } catch (e) {}
+    });
+  }
+  return out;
+}
+
 function runAll() {
-  const checks = [checkParser, checkTitle, checkMenu, checkNoticeData, checkNoticeUI];
+  const checks = [checkParser, checkTitle, checkMenu, checkNoticeData, checkNoticeUI, checkHighlights];
   let rows = [];
   for (const fn of checks) {
     try { rows = rows.concat(fn()); }

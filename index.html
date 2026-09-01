@@ -57,8 +57,9 @@
 <div id="hlpop" class="sheetpop" hidden>
   <div class="sheetpop-inner">
     <div class="hltitle">개인 하이라이트</div>
-    <div class="hldesc">본인 이름이나 키워드를 <b>한 줄에 하나씩</b> 넣으면 그 줄이 <b>이 기기에서만</b> 빨갛게 표시돼요. 다른 사람이 볼 때는 영향이 없어요.<br>교수님은 <b>(이름, 과)</b> 형태로 넣으면 같은 이름 다른 과와 안 헷갈려요.</div>
-    <textarea id="hlInput" class="hlinput" rows="6" placeholder="예: 홍길동&#10;(김철수, EM)"></textarea>
+    <div class="hldesc">강조할 <b>이름</b>을 넣고 <b>학생/교수</b>를 고른 뒤, 색 동그라미를 눌러 <b>원하는 색</b>을 고르면 그 이름이 든 줄 전체가 <b>이 기기에서만</b> 그 색으로 보여요. <b>학생</b>은 초안자·검안자 줄에서, <b>교수</b>는 (이름, 과) 줄에서 찾아요.<br><b>＋ 추가</b>로 여러 명을 서로 다른 색으로 강조할 수 있고, <b>−</b>로 지워요.</div>
+    <div id="hlRows"></div>
+    <button id="hlAdd" class="nbtn hladd" type="button">＋ 추가</button>
     <button id="hlSave" class="nbtn" type="button">저장</button>
     <button id="hlClose" class="nbtn hlclose" type="button">닫기</button>
   </div>
