@@ -735,7 +735,7 @@ git commit -m "feat: 레퍼런스 추출·로드 + 블록 분리 술어"
 
 **Interfaces:**
 - Consumes: `splitBlocks`, `parseProfessorLine` (Task 3)
-- Produces: `parseOfficial(ttGrid, asgGrid, asgMerges)` → `IR[]`
+- Produces: `parseOfficial(ttGrid, asgGrid, asgMerges, baseYear)` → `IR[]`
   ```js
   { date: '2026-09-03', period: 3, weekday: 4,
     className: '외과 종양학', professor: '류성엽',
