@@ -117,12 +117,14 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 .hlseg{display:flex;flex:none;border:0.5px solid #b5b2aa;border-radius:8px;overflow:hidden}
 .hlseg button{font:inherit;font-size:12.5px;padding:8px 9px;border:0;background:#fff;color:#73726c;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .hlseg button.sel{background:#2E75B6;color:#fff;font-weight:600}
-.hlsw{flex:none;width:30px;height:30px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #b5b2aa;cursor:pointer;padding:0}
+.hlsw{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #d8d5cc;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
+.hlsw svg{display:block}
 .hldel{flex:none;width:30px;height:30px;border-radius:8px;border:0.5px solid #b5b2aa;background:#f4f2ec;color:#C04848;font-size:16px;font-weight:700;line-height:1;cursor:pointer;padding:0}
-.hlpal{display:flex;gap:8px;justify-content:center;padding:2px 0 10px;flex-wrap:wrap}
+.hlpal{display:flex;gap:10px;justify-content:center;padding:2px 0 10px;flex-wrap:wrap}
 .hlpal[hidden]{display:none}
-.hlpal button{width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #cfccc4;cursor:pointer;padding:0}
-.hlpal button.sel{box-shadow:0 0 0 2px #1f1e1c}
+.hlpal button{width:20px;height:20px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #dedbd2;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
+.hlpal button.sel{box-shadow:0 0 0 2px #fff,0 0 0 3.5px #a8a49a}
+.hlpal button.sel::after{content:'✓';font-size:11px;font-weight:700;color:#4a4844;line-height:1}
 .sheetpop-inner .nbtn.hladd{margin-top:2px;background:#f4f2ec;color:#2E75B6;font-weight:700}
 .sheetpop-inner .nbtn.hlclose{margin-top:8px;background:#f4f2ec}
 

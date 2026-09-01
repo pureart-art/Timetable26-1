@@ -706,6 +706,15 @@ function showPop(cm) {
 }
 
 /* ===== 하이라이트 편집기: 행 = [이름][학생|교수][색][−], 팔레트는 행 아래 접이식 ===== */
+/* 설정 화면 표시용 파스텔 — 원색을 흰색과 반씩 섞는다. 시간표에 칠하는 색(저장값)은 원색 그대로. */
+function hlPastel(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const mix = ch => Math.round(ch * 0.5 + 127.5);
+  const r = mix((n >> 16) & 255), g = mix((n >> 8) & 255), b = mix(n & 255);
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+}
+/* 붓펜 아이콘(Material Icons 'brush', Apache 2.0) — 스와치가 색 고르는 버튼임을 보여준다 */
+const HL_BRUSH_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="#55524C" fill-opacity=".8" d="M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3zm13.71-9.37-1.34-1.34a.996.996 0 0 0-1.41 0L9 12.25 11.75 15l8.96-8.96a.996.996 0 0 0 0-1.41z"/></svg>';
 function hlAddRow(entry) {
   const rows = $('hlRows');
   const row = document.createElement('div');
@@ -734,7 +743,8 @@ function hlAddRow(entry) {
 
   const sw = document.createElement('button');
   sw.type = 'button'; sw.className = 'hlsw'; sw.title = '색 고르기';
-  sw.style.background = entry.color;
+  sw.style.background = hlPastel(entry.color);
+  sw.innerHTML = HL_BRUSH_SVG;
   row.appendChild(sw);
 
   const del = document.createElement('button');
@@ -746,12 +756,12 @@ function hlAddRow(entry) {
   const COLOR_NAMES = ['빨강', '주황', '초록', '청록', '파랑', '보라', '핑크', '갈색'];
   HL_COLORS.forEach((col, i) => {
     const d = document.createElement('button');
-    d.type = 'button'; d.style.background = col;
+    d.type = 'button'; d.style.background = hlPastel(col);
     d.title = COLOR_NAMES[i]; d.setAttribute('aria-label', COLOR_NAMES[i]);
     d.classList.toggle('sel', col === entry.color);
     d.addEventListener('click', () => {
       row.dataset.color = col;
-      sw.style.background = col;
+      sw.style.background = hlPastel(col);
       Array.prototype.forEach.call(pal.children, x => x.classList.toggle('sel', x === d));
       pal.hidden = true;
     });

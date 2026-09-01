@@ -406,6 +406,28 @@ function checkHighlights() {
             JSON.stringify(restored) === JSON.stringify(['#2E75B6', '#555555', '#000000']),
       detail: 'colored ' + JSON.stringify(colored) + ' restored ' + JSON.stringify(restored),
     });
+
+    /* 7) 설정 화면 파스텔 변환: 흰색과 반씩 — 시간표에 칠하는 색은 이 함수를 안 거친다 */
+    out.push({
+      name: 'hlPastel은 원색을 흰색과 반씩 섞는다',
+      pass: hlPastel('#FF0000') === '#FF8080' && hlPastel('#188038') === '#8CC09C',
+      detail: hlPastel('#FF0000') + ' / ' + hlPastel('#188038'),
+    });
+
+    /* 8) 스와치 표시는 파스텔이어도 dataset(저장값)은 원색 — 표시용 변환이 저장 경로에 새면 안 됨 */
+    const rowsEl = document.getElementById('hlRows');
+    if (rowsEl) {
+      rowsEl.innerHTML = '';   /* openHlEditor가 열 때마다 다시 그리므로 비워도 안전 */
+      hlAddRow({ name: '검증용', type: 'stu', color: '#FF0000' });
+      const r0 = rowsEl.querySelector('.hlrow');
+      out.push({
+        name: '스와치 표시는 파스텔, 저장값은 원색 유지',
+        pass: r0.dataset.color === '#FF0000' &&
+              r0.querySelector('.hlsw').style.background === 'rgb(255, 128, 128)',
+        detail: r0.dataset.color + ' / ' + r0.querySelector('.hlsw').style.background,
+      });
+      rowsEl.innerHTML = '';
+    }
   } finally {
     KEYS.forEach(k => {
       try {
