@@ -485,7 +485,7 @@ test('통합 12건 / 분할 2건', () => {
 - [ ] **Step 4: 테스트 실행 — 통과 확인**
 
 ```bash
-cd "C:/claude/timetable-sync" && node --test test/
+cd "C:/claude/timetable-sync" && node --test test/*.test.js
 ```
 
 기대: 5 passing. 실패하면 픽스처 추출기나 위 상수(242, 12, 2)를 실제 값에 맞춰 조정하고, **스펙의 숫자도 함께 고친다.**
@@ -1161,7 +1161,8 @@ git commit -m "feat: 시간순 라벨 번호 — 통합은 번호 공유, 미지
 
 **Interfaces:**
 - Consumes: `splitBlocks` (Task 3), `assignNumbers` (Task 5)
-- Produces: `composeCell(items, currentText, ref)` → `{ text, labelStart, unknownLines, unmappedProfs }`
+- Produces: `composeCell(items, currentText, ref)` → `{ text, labelStart, unknownLines, unmappedProfs, orphanLeading }`
+  - `orphanLeading`: 교수·라벨 줄 앞에 생성한 수업명 줄 수보다 많은 줄이 있던 경우 그 줄들(설명 불가). `null` 이면 정상. **보존하지 않고 알림에만 싣는다** — 아래 주석 참조
   - `items`: 이 셀에 들어갈 IR 배열 (통합이면 2개, 분할이면 1개인데 팀 2개)
   - `currentText`: GY 시트의 현재 셀 문자열 (메모 보존용)
   - `labelStart`: 학습부 블록이 시작하는 문자 인덱스 (`#2E75B5` run 시작점). 없으면 -1
@@ -1245,6 +1246,27 @@ test('정체불명 줄은 지우지 않고 보존하며 보고한다', () => {
   assert.deepStrictEqual(r.unknownLines, ['보강 11/20']);
 });
 
+test('교수 줄 앞 미표식 손글씨는 orphanLeading 으로 보고된다 (보존은 안 함)', () => {
+  const cur = '종양의 병기
+보강 11/20
+(류성엽, Upper GI Surg)
+혈종2: 강현승/임유진';
+  const r = composeCell([{ className: '종양의 병기', professor: '류성엽',
+    drafter: '강현승', reviewer: '임유진', labelText: '혈종2' }], cur, REF);
+  assert.deepStrictEqual(r.orphanLeading, ['종양의 병기', '보강 11/20']);
+  assert.ok(!r.text.includes('보강 11/20'), '추측해서 되살리지 않는다');
+});
+
+test('수업명이 정당하게 바뀐 경우는 orphanLeading 이 아니다', () => {
+  const cur = '종양의 이해
+(류성엽, Upper GI Surg)
+혈종2: 강현승/임유진';
+  const r = composeCell([{ className: '종양학 개론', professor: '류성엽',
+    drafter: '강현승', reviewer: '임유진', labelText: '혈종2' }], cur, REF);
+  assert.strictEqual(r.orphanLeading, null, '옛 수업명이 셀에 남으면 안 된다');
+  assert.ok(!r.text.includes('종양의 이해'));
+});
+
 test('labelStart 가 학습부 블록의 문자 인덱스를 가리킨다', () => {
   const r = composeCell([{ className: 'AB', professor: null,
     drafter: '가', reviewer: '나', labelText: 'X1' }], '', REF);
@@ -1310,8 +1332,19 @@ function composeCell(items, currentText, ref) {
   const prev = splitBlocks(currentText || '');
   const memo = prev.memo.slice();
   const unknownLines = prev.unknown.slice();
-
   const generated = classNames.concat(profLines).concat(labelLines);
+
+  // 교수·라벨 줄 '앞'에 있던 줄은 수업명 자리라 보존 술어가 다르다.
+  // 단순히 "생성물과 다르면 보존"으로 하면 공식이 수업명을 바꿨을 때
+  // 옛 이름이 셀에 남아 두 줄이 된다 — 반대 방향의 사고.
+  // 그래서 앞쪽 줄 수가 생성한 수업명 줄 수보다 많을 때만 '설명 못 함'으로 보고,
+  // 추측해서 보존하지 않고 알림에 셀 전문을 실어 보낸다.
+  // (변경로그의 이전값 + 쓰기 직전 전체 백업이 실제 복구 경로다.)
+  let orphanLeading = null;
+  if (prev.className.length > classNames.length) {
+    orphanLeading = prev.className.slice();
+  }
+
   const all = generated.concat(unknownLines).concat(memo);
   const text = all.join('\n');
 
@@ -1320,7 +1353,7 @@ function composeCell(items, currentText, ref) {
     const before = classNames.concat(profLines);
     labelStart = before.length ? before.join('\n').length + 1 : 0;
   }
-  return { text, labelStart, unknownLines, unmappedProfs };
+  return { text, labelStart, unknownLines, unmappedProfs, orphanLeading };
 }
 ```
 
@@ -1338,7 +1371,7 @@ if (typeof require !== 'undefined' && typeof splitBlocks === 'undefined') {
 cd "C:/claude/timetable-sync" && node --test test/compose-cell.test.js
 ```
 
-기대: 10 passing
+기대: 12 passing
 
 - [ ] **Step 5: 커밋**
 
@@ -1452,10 +1485,10 @@ function composeFormat(cellResult, subject, ref) {
 - [ ] **Step 4: 테스트 통과 확인**
 
 ```bash
-cd "C:/claude/timetable-sync" && node --test test/
+cd "C:/claude/timetable-sync" && node --test test/*.test.js
 ```
 
-기대: 전체 통과 (fixture 5 + reference 5 + parse 9 + number 6 + cell 10 + format 6 = 41)
+기대: 전체 통과 (실패 0). 태스크마다 테스트가 늘어나므로 총계 숫자에 의존하지 말고 `fail 0` 을 볼 것.
 
 - [ ] **Step 5: 커밋**
 
@@ -2121,6 +2154,10 @@ function buildTarget(items, gy, ref) {
     }
 
     built.unknownLines.forEach(l => unknownLines.push('R' + slot.r + 'C' + slot.c + ': ' + l));
+    if (built.orphanLeading) {
+      unknownLines.push('R' + slot.r + 'C' + slot.c + ' [설명불가·미보존] 이전 셀: ' +
+        built.orphanLeading.join(' / '));
+    }
     built.unmappedProfs.forEach(p => { if (unmappedProfs.indexOf(p) < 0) unmappedProfs.push(p); });
 
     const prevLabel = (cur.split('\n').find(l => /^[가-힣A-Za-z]+\d+(-\d)?\s*:/.test(l)) || '').split(':')[0];
