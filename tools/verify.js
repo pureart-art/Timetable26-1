@@ -180,6 +180,15 @@ function checkMenu() {
   $$('menupop').dispatchEvent(new MouseEvent('click', { bubbles: true }));
   out.push({ name: '메뉴 · 배경을 누르면 닫힌다', pass: $$('menupop').hidden, detail: 'hidden=' + $$('menupop').hidden });
 
+  /* 팝업 시트는 화면을 넘치지 않고 안에서 스크롤한다 — 공지·하이라이트가 길어도 위가 안 잘린다 */
+  const inner = document.querySelector('#ntcpop .sheetpop-inner');
+  const ics = inner ? getComputedStyle(inner) : null;
+  out.push({
+    name: '메뉴 · 팝업 시트가 max-height + 내부 스크롤을 가진다',
+    pass: !!ics && ics.overflowY === 'auto' && ics.maxHeight !== 'none',
+    detail: ics ? 'overflowY=' + ics.overflowY + ' maxHeight=' + ics.maxHeight : 'no element',
+  });
+
   /* 점은 hidden 속성으로 숨겨지고 CSS가 이를 존중해야 한다 */
   /* 이 값은 checkNoticeUI가 끝에 renderNoticeDot()을 부르며 되돌린다 — runAll 안에서 치유됨 */
   $$('ntcDot').hidden = true;

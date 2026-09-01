@@ -100,7 +100,9 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 /* ===== 탭 → 전체 텍스트 팝업 ===== */
 .sheetpop{position:fixed;inset:0;background:rgba(31,30,28,.35);display:flex;align-items:flex-end;justify-content:center;z-index:50}
 .sheetpop[hidden]{display:none}
-.sheetpop-inner{background:#fff;border-radius:12px 12px 0 0;max-width:560px;width:100%;padding:18px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -4px 24px rgba(0,0,0,.18);text-align:center}
+/* 내용이 길면 시트 안에서만 스크롤 — 화면 위로 뚫고 나가 윗부분이 잘리는 것을 막는다.
+   max-height는 dvh(주소창 변동 반영, iOS 15.4+)에 vh 폴백. overscroll-behavior로 뒤 시간표에 스크롤 전파 차단. */
+.sheetpop-inner{background:#fff;border-radius:12px 12px 0 0;max-width:560px;width:100%;padding:18px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -4px 24px rgba(0,0,0,.18);text-align:center;max-height:85vh;max-height:85dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .sheetpop-inner .l1{font-size:15px}
 .sheetpop-inner .l2{font-size:13px;margin-top:5px}
 .sheetpop-inner .l3{font-size:13px;margin-top:6px}
