@@ -399,14 +399,34 @@ fs.writeFileSync(OUT, JSON.stringify({ title: snap.properties.title, rows }, nul
 console.log('wrote', OUT, '| title=', snap.properties.title, '| rows=', rows.length);
 ```
 
-- [ ] **Step 2: 실행해서 픽스처 생성**
+- [ ] **Step 2: 스냅샷 신선도 확인 후 픽스처 생성**
+
+> **`data/snapshot.js`는 라이브 시트와 갱신 주기가 다른 두 번째 사본이다.** 스냅샷 Action은 선언 30분이지만 실측 중앙값 ~90분이라, GY가 방금 시트를 고쳤으면 리포 스냅샷은 옛 상태다. **stale 스냅샷으로 골든 픽스처를 만들면 아래 어서션 전부가 틀린 상태에 고정된다.**
+>
+> 실제로 2026-09-01 이 계획을 쓰는 시점에 리포는 `v97`, 라이브는 `v99`였다.
 
 ```bash
 cd "C:/Users/wbnuj/timetable-pwa" && git pull --rebase
+grep -o 'v[0-9]*_시간표_GY' data/snapshot.js | head -1
+```
+
+라이브 시트의 현재 제목(드라이브에서 파일명 확인)과 위 출력이 **같아야 한다.** 다르면 Action을 수동 발화시키고 완료를 기다린 뒤 다시 pull 한다:
+
+```bash
+cd "C:/Users/wbnuj/timetable-pwa"
+gh workflow run snapshot.yml
+gh run watch
+git pull --rebase
+grep -o 'v[0-9]*_시간표_GY' data/snapshot.js | head -1
+```
+
+제목이 일치하면 픽스처를 만든다:
+
+```bash
 cd "C:/claude/timetable-sync" && node tools/make-gy-fixture.js
 ```
 
-기대: `wrote ... | title= v97_시간표_GY | rows= 1049` (v 번호는 더 높을 수 있음)
+기대: `wrote ... | title= v99_시간표_GY | rows= 1049` — **title 이 라이브 시트 파일명과 일치할 것.** 일치하지 않으면 진행하지 말고 GY에게 보고한다.
 
 - [ ] **Step 3: 픽스처가 알려진 사실과 맞는지 검증하는 테스트 작성**
 
@@ -469,6 +489,8 @@ cd "C:/claude/timetable-sync" && node --test test/
 ```
 
 기대: 5 passing. 실패하면 픽스처 추출기나 위 상수(242, 12, 2)를 실제 값에 맞춰 조정하고, **스펙의 숫자도 함께 고친다.**
+
+> 이 숫자들은 `v97` 스냅샷 실측값이다(2026-09-01). GY가 그 뒤로 시트를 고쳤으면 달라질 수 있고, **달라지는 것 자체는 정상이다** — 픽스처를 정답으로 삼고 상수를 맞춘 뒤, 무엇이 왜 달라졌는지 한 줄로 커밋 메시지에 남긴다. 조용히 숫자만 바꾸지 말 것.
 
 - [ ] **Step 5: 커밋**
 
