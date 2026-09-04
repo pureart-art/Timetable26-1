@@ -891,6 +891,8 @@ function bindUI() {
   $('menuClose').addEventListener('click', closeMenu);
   $('menupop').addEventListener('click', e => { if (e.target === $('menupop')) closeMenu(); });
   $('miHl').addEventListener('click', () => { closeMenu(); openHlEditor(); });
+  const miUpd = $('miUpd');
+  if (miUpd) miUpd.addEventListener('click', () => forceAppUpdate(document.getElementById('miUpdStatus')));
   $('hlAdd').addEventListener('click', () => { hlAddRow({ name: '', type: 'stu', color: hlNextColor() }); });
   $('miNtc').addEventListener('click', () => {
     closeMenu();
@@ -937,7 +939,58 @@ async function main() {
   });
   /* localhost(개발)에서는 SW 미등록 — 캐시가 코드 수정을 가리는 것 방지 */
   if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      swReg = reg;
+      /* 설치된 앱은 앱 전환기에서 '되살아나기'만 하면 새로고침도, sw.js 확인도 일어나지 않는다.
+         그래서 새 버전을 올려도 계속 옛 화면을 본다(2026-09-04 GY 제보). 열 때와 돌아올 때
+         직접 확인시킨다 — 새 워커가 자리를 잡으면 아래 controllerchange 가 알림을 띄운다. */
+      reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    }).catch(() => {});
+    /* 새 서비스워커가 제어권을 넘겨받은 순간 = 새 버전이 준비된 순간. 사용자가 보던 화면을
+       마음대로 갈아엎지 않고 물어본다(수업 중에 화면이 튀면 곤란하다). */
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (swReloading) return;
+      showUpdateToast();
+    });
   }
 }
+let swReg = null, swReloading = false;
+
+/* 새 버전 준비됨 알림. 페이지를 자동으로 갈아엎지 않는 이유 = 보고 있던 주/스크롤이 날아간다. */
+function showUpdateToast() {
+  if (document.getElementById('updToast')) return;
+  const t = document.createElement('div');
+  t.id = 'updToast'; t.className = 'updtoast';
+  const msg = document.createElement('span');
+  msg.textContent = '새 버전이 준비됐어요';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'updtoast-btn'; btn.textContent = '새로고침';
+  btn.addEventListener('click', () => { swReloading = true; location.reload(); });
+  const x = document.createElement('button');
+  x.type = 'button'; x.className = 'updtoast-x'; x.setAttribute('aria-label', '닫기'); x.textContent = '✕';
+  x.addEventListener('click', () => t.remove());
+  t.appendChild(msg); t.appendChild(btn); t.appendChild(x);
+  document.body.appendChild(t);
+}
+
+/* 메뉴의 '앱 업데이트' — 사용자가 직접 부르는 마지막 수단.
+   sw.js 를 다시 확인시키고, 셸 캐시를 비우고, 새로고침한다. 지웠다 다시 깔 필요가 없어야 한다. */
+async function forceAppUpdate(statusEl) {
+  const say = (m) => { if (statusEl) statusEl.textContent = m; };
+  try {
+    say('확인 중…');
+    if (swReg) await swReg.update();
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter(k => k.indexOf('shell-') === 0).map(k => caches.delete(k)));
+    }
+    say('새로고침합니다…');
+    swReloading = true;
+    setTimeout(() => location.reload(), 300);
+  } catch (e) {
+    say('업데이트 확인에 실패했어요. 인터넷 연결을 확인해 주세요.');
+  }
+}
+
 main().catch(e => console.error('앱 초기화 실패:', e));

@@ -178,3 +178,20 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
   -webkit-overflow-scrolling:touch;
   font-size:13px;line-height:1.55;color:#4a4741;white-space:pre-wrap;word-break:break-word}
 .ntcmodal-ok{flex:none;margin-top:12px;width:100%}
+
+/* 메뉴 '앱 업데이트' 상태 문구 */
+.mi-sub{margin-left:auto;font-size:11px;color:#8a897f;font-weight:400}
+
+/* 새 버전 알림 토스트 — 보던 화면을 마음대로 갈아엎지 않고 물어본다 */
+.updtoast{position:fixed;left:50%;transform:translateX(-50%);z-index:70;
+  bottom:calc(14px + env(safe-area-inset-bottom));
+  display:flex;align-items:center;gap:8px;max-width:calc(100vw - 20px);
+  padding:8px 8px 8px 14px;border-radius:999px;white-space:nowrap;
+  background:#2b2a27;color:#f5f3ee;font-size:12px;box-shadow:0 6px 22px rgba(0,0,0,.28)}
+.updtoast>span{flex:none}
+.updtoast-btn{flex:none;border:0;border-radius:999px;padding:5px 12px;cursor:pointer;
+  background:#f5f3ee;color:#2b2a27;font-size:12px;font-weight:700}
+.updtoast-x{flex:none;border:0;background:transparent;color:#f5f3ee;opacity:.6;
+  font-size:12px;padding:2px 4px;cursor:pointer}
+.updtoast-x:hover{opacity:1}
+
