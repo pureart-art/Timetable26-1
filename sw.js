@@ -1,7 +1,7 @@
 /* 시간표 PWA 서비스 워커
    - 모든 요청: 네트워크 우선(항상 최신), 실패(오프라인) 시 캐시
    - Sheets API: 네트워크 우선, 실패 시 마지막 성공 응답 */
-const VERSION = 'v24';
+const VERSION = 'v25';
 const SHELL_CACHE = 'shell-' + VERSION;
 const DATA_CACHE = 'data-' + VERSION;
 const SHELL = [
@@ -18,6 +18,11 @@ self.addEventListener('activate', e => {
       keys.filter(k => k !== SHELL_CACHE && k !== DATA_CACHE).map(k => caches.delete(k))
     )).then(() => self.clients.claim())
   );
+});
+/* 페이지가 '지금 설치된 게 몇 버전이냐' 고 물어보는 창구. 버전의 출처는 이 파일 하나뿐이고
+   페이지는 서버의 sw.js 를 따로 읽어 비교한다 — 같은 사실을 두 곳에 적어두지 않는다. */
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'version' && e.ports && e.ports[0]) e.ports[0].postMessage(VERSION);
 });
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);

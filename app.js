@@ -885,7 +885,7 @@ function bindUI() {
   $('popClose').addEventListener('click', () => { $('sheetpop').hidden = true; });
   $('sheetpop').addEventListener('click', e => { if (e.target === $('sheetpop')) $('sheetpop').hidden = true; });
   /* 3줄 메뉴 */
-  const openMenu = () => { $('menupop').hidden = false; };
+  const openMenu = () => { $('menupop').hidden = false; checkAppVersion(); };
   const closeMenu = () => { $('menupop').hidden = true; };
   $('btnMenu').addEventListener('click', openMenu);
   $('menuClose').addEventListener('click', closeMenu);
@@ -972,6 +972,43 @@ function showUpdateToast() {
   x.addEventListener('click', () => t.remove());
   t.appendChild(msg); t.appendChild(btn); t.appendChild(x);
   document.body.appendChild(t);
+}
+
+/* 지금 내 앱에 설치된 버전 = 이 페이지를 서빙하는 서비스워커의 VERSION.
+   서버에 올라간 최신 버전 = sw.js 를 캐시 없이 읽어 뽑은 VERSION. 둘을 비교한다.
+   버전 문자열의 출처는 sw.js 하나뿐 — app.js 에 따로 적어두면 둘이 어긋난다. */
+function installedVersion() {
+  return new Promise(resolve => {
+    const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (!sw) { resolve(null); return; }
+    const ch = new MessageChannel();
+    const t = setTimeout(() => resolve(null), 2000);
+    ch.port1.onmessage = ev => { clearTimeout(t); resolve(String(ev.data || '') || null); };
+    try { sw.postMessage({ type: 'version' }, [ch.port2]); } catch (e) { clearTimeout(t); resolve(null); }
+  });
+}
+async function latestVersion() {
+  const res = await fetch('sw.js?cb=' + Date.now(), { cache: 'no-store' });
+  if (!res.ok) throw new Error('sw.js ' + res.status);
+  const m = (await res.text()).match(/VERSION = '([^']+)'/);
+  return m ? m[1] : null;
+}
+
+/* 메뉴를 열 때마다 조용히 확인해 '앱 업데이트' 옆에 상태를 적는다. 실패해도 앱에는 영향 없다. */
+async function checkAppVersion() {
+  const el = document.getElementById('miUpdStatus');
+  if (!el) return;
+  el.textContent = '확인 중…';
+  el.className = 'mi-sub';
+  try {
+    const [mine, latest] = await Promise.all([installedVersion(), latestVersion()]);
+    if (!latest) { el.textContent = ''; return; }
+    if (!mine) { el.textContent = '최신 ' + latest; return; }   /* 아직 서비스워커가 제어 전 */
+    if (mine === latest) el.textContent = '최신 ' + mine;
+    else { el.textContent = '새 버전 ' + latest + ' 있어요'; el.className = 'mi-sub mi-sub-new'; }
+  } catch (e) {
+    el.textContent = '확인 실패';
+  }
 }
 
 /* 메뉴의 '앱 업데이트' — 사용자가 직접 부르는 마지막 수단.
