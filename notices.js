@@ -283,12 +283,50 @@ function appendNoticeStamp(body) {
   body.appendChild(at);
 }
 
+/* 안읽음 상태가 드러나는 곳은 셋(메뉴 점·햄버거 점·배너)이고 아이콘 배지까지 넷이지만,
+   판정은 hasUnreadNotices 하나뿐이다. 표현만 여럿이고 사실은 하나 — 여기서만 갈라 쓴다. */
 function renderNoticeDot() {
   const unread = hasUnreadNotices(noticeState.items);
   const a = document.getElementById('ntcDot');
   const b = document.getElementById('btnMenuDot');
   if (a) a.hidden = !unread;
   if (b) b.hidden = !unread;
+  renderNoticeBanner(unread);
+  setNoticeAppBadge(unread);
+}
+
+/* 안 읽은 공지가 있으면 시간표 위에 배너로 먼저 보여준다. ✕ 는 공지 패널을 여는 것과
+   똑같은 '읽음' 처리(markNoticesSeen) — 그래서 배너·점이 함께 사라지고 다시 안 뜬다.
+   새 공지가 올라오면 최신 날짜가 갱신되므로 그때 다시 뜬다. */
+function renderNoticeBanner(unread) {
+  const el = document.getElementById('ntcBanner');
+  if (!el) return;
+  const n = unread ? noticeState.items[0] : null;
+  if (!n) { el.hidden = true; return; }
+  const d = document.getElementById('ntcBannerDate');
+  const b = document.getElementById('ntcBannerBody');
+  if (d) d.textContent = [n.date, n.title].filter(Boolean).join('  ·  ');
+  if (b) {
+    b.textContent = '';
+    /* 패널과 같은 규칙: 볼드 세그먼트는 <b>, 구버전 캐시는 평문. innerHTML 금지. */
+    const segs = (n.bodySegs && n.bodySegs.length) ? n.bodySegs : [{ t: n.body || '', b: false }];
+    for (const sg of segs) {
+      if (sg.b) { const st = document.createElement('b'); st.textContent = sg.t; b.appendChild(st); }
+      else b.appendChild(document.createTextNode(sg.t));
+    }
+  }
+  el.hidden = false;
+}
+
+/* 홈화면 아이콘 배지. iOS 16.4+ 홈화면 웹앱과 설치형 PWA 에서 동작하고, 없으면 조용히 넘어간다.
+   **앱이 닫힌 동안에는 갱신되지 않는다** — 그건 Web Push 가 있어야 한다.
+   여기서 얻는 건 '열어는 봤는데 공지를 안 읽고 나갔을 때 아이콘에 남는 표시' 뿐이다.
+   시간표가 바뀌었다는 사실 자체는 카톡·메일 알림이 이미 알려준다. */
+function setNoticeAppBadge(unread) {
+  try {
+    if (unread) { if (navigator.setAppBadge) navigator.setAppBadge(1); }
+    else { if (navigator.clearAppBadge) navigator.clearAppBadge(); }
+  } catch (e) {}
 }
 
 /* DOM 조회는 전부 가드한다. bindNotices()는 main()의 첫 문장인 bindUI()에서 불리므로,
@@ -311,4 +349,6 @@ function bindNotices() {
   if (!pop || !close) return;
   close.addEventListener('click', () => { pop.hidden = true; });
   pop.addEventListener('click', e => { if (e.target === pop) pop.hidden = true; });
+  const x = document.getElementById('ntcBannerX');
+  if (x) x.addEventListener('click', () => { markNoticesSeen(noticeState.items); renderNoticeDot(); });
 }

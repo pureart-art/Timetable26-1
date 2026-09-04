@@ -150,3 +150,15 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 .ntcbody{font-size:13px;color:#4a4945;line-height:1.55;margin-top:3px;white-space:pre-wrap;word-break:break-word}
 .ntcmsg{font-size:13px;color:#73726c;padding:16px 0;text-align:center;line-height:1.6;white-space:pre-line}
 .ntcmore{display:block;width:100%;font:inherit;font-size:13px;color:#73726c;background:none;border:0;padding:10px 0;cursor:pointer}
+
+/* 새 공지 배너 — 안 읽은 공지가 있을 때만. ✕ 는 빨간 점과 같은 '읽음' 처리를 한다. */
+.ntcbanner{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding:9px 10px;
+  font-size:12px;color:#7a2f2f;background:#FDECEC;border:0.5px solid #F0BDBD;border-radius:6px}
+.ntcbanner[hidden]{display:none}
+.ntcbanner-txt{flex:1;min-width:0}
+.ntcbanner-date{font-size:11px;opacity:.75;margin-bottom:2px}
+.ntcbanner-body{white-space:pre-wrap;word-break:break-word;line-height:1.45}
+.ntcbanner-x{flex:none;border:0;background:transparent;color:#7a2f2f;opacity:.6;
+  font-size:14px;line-height:1;padding:2px 4px;cursor:pointer}
+.ntcbanner-x:hover{opacity:1}
+
