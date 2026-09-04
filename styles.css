@@ -151,20 +151,30 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 .ntcmsg{font-size:13px;color:#73726c;padding:16px 0;text-align:center;line-height:1.6;white-space:pre-line}
 .ntcmore{display:block;width:100%;font:inherit;font-size:13px;color:#73726c;background:none;border:0;padding:10px 0;cursor:pointer}
 
-/* 새 공지 모달 — 가운데 띄우고 뒤 시간표는 블러. ✕/확인 은 빨간 점과 같은 '읽음' 처리.
-   backdrop-filter 를 못 쓰는 브라우저에서도 반투명 바탕만으로 충분히 읽힌다(점진적 향상). */
+/* 새 공지 모달 — 가운데 띄우고 뒤 시간표는 블러. 바깥 클릭은 아무 일도 하지 않는다.
+   **어떤 화면에서도 잘리지 않는 것**이 이 블록의 핵심 요구다(폰 세로/가로·패드·데스크톱).
+   그래서 카드에 고정 높이를 주지 않고 flex 로 짜서, 화면이 좁아지면 본문만 줄어들게 한다:
+   - 카드 = 세로 flex, max-height 는 뷰포트에서 여백·노치를 뺀 값
+   - 본문 = flex:1 1 auto + min-height:0 → 여기서만 줄고, 넘치면 안에서 스크롤
+   - 태그·날짜·확인 버튼 = flex:none → 아무리 좁아도 안 밀려나고 항상 보인다
+   본문에 고정 max-height 를 주면 가로모드(높이 375px)에서 확인 버튼이 화면 밖으로 나간다. */
 .ntcmodal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
-  padding:20px;background:rgba(31,30,28,.38);
+  padding:16px;padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(16px,env(safe-area-inset-bottom));
+  padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right));
+  background:rgba(31,30,28,.38);
   -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .ntcmodal[hidden]{display:none}
-.ntcmodal-card{position:relative;background:#fff;border-radius:14px;max-width:420px;width:100%;
-  padding:18px 18px 16px;box-shadow:0 10px 40px rgba(0,0,0,.22);text-align:left}
-.ntcmodal-x{position:absolute;top:8px;right:10px;border:0;background:transparent;color:#8a8577;
-  font-size:15px;line-height:1;padding:4px 6px;cursor:pointer}
+.ntcmodal-card{position:relative;display:flex;flex-direction:column;
+  background:#fff;border-radius:14px;max-width:420px;width:100%;
+  max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);
+  padding:16px 18px 14px;box-shadow:0 10px 40px rgba(0,0,0,.22);text-align:left}
+.ntcmodal-x{position:absolute;top:6px;right:8px;border:0;background:transparent;color:#8a8577;
+  font-size:15px;line-height:1;padding:6px 8px;cursor:pointer}
 .ntcmodal-x:hover{color:#2b2a27}
-.ntcmodal-tag{display:inline-block;font-size:11px;font-weight:700;color:#B03A3A;background:#FDECEC;
-  border-radius:4px;padding:2px 7px;margin-bottom:8px}
-.ntcmodal-date{font-size:13px;font-weight:600;color:#2b2a27;margin-bottom:6px;padding-right:20px}
-.ntcmodal-body{font-size:13px;line-height:1.55;color:#4a4741;white-space:pre-wrap;word-break:break-word;
-  max-height:52vh;max-height:52dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-.ntcmodal-ok{margin-top:14px;width:100%}
+.ntcmodal-tag{flex:none;align-self:flex-start;font-size:11px;font-weight:700;color:#B03A3A;
+  background:#FDECEC;border-radius:4px;padding:2px 7px;margin-bottom:8px}
+.ntcmodal-date{flex:none;font-size:13px;font-weight:600;color:#2b2a27;margin-bottom:6px;padding-right:24px}
+.ntcmodal-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  font-size:13px;line-height:1.55;color:#4a4741;white-space:pre-wrap;word-break:break-word}
+.ntcmodal-ok{flex:none;margin-top:12px;width:100%}

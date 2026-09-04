@@ -12,6 +12,7 @@ const NOTICE = {
   RANGE: 'A2:C100',
   CACHE_KEY: 'tt_notices',
   SEEN_KEY: 'tt_notice_seen',
+  DISMISS_KEY: 'tt_notice_dismissed',   // 배너만 닫음(읽음과 다르다 — 빨간 점은 남는다)
   MIN_REFETCH_MS: 1800000,   // 30분 — 공지는 자주 바뀌지 않는다
   TIMEOUT_MS: 8000,
   SHOW_EXPANDED: 5,          // 펼쳐 보여줄 최신 개수
@@ -123,6 +124,22 @@ function markNoticesSeen(items) {
 function hasUnreadNotices(items) {
   const d = latestNoticeDate(items);
   return !!d && d > noticeSeen();
+}
+
+/* '읽음'(확인) 과 '배너만 닫음'(✕) 은 다른 상태다.
+   ✕ = 지금은 안 보겠다 — 배너는 그만 뜨되 **안읽음은 유지**(3줄 메뉴 빨간 점이 남는다).
+   확인 = 읽었다 — 점까지 사라진다.
+   새 공지가 오면 최신 날짜가 두 기준선을 모두 넘으므로 배너도 점도 다시 살아난다. */
+function noticeDismissed() {
+  try { return localStorage.getItem(NOTICE.DISMISS_KEY) || ''; } catch (e) { return ''; }
+}
+function markNoticeBannerDismissed(items) {
+  const d = latestNoticeDate(items);
+  if (d) { try { localStorage.setItem(NOTICE.DISMISS_KEY, d); } catch (e) {} }
+}
+function shouldShowNoticeModal(items) {
+  const d = latestNoticeDate(items);
+  return !!d && d > noticeSeen() && d > noticeDismissed();
 }
 
 function readNoticeCache() {
@@ -291,7 +308,7 @@ function renderNoticeDot() {
   const b = document.getElementById('btnMenuDot');
   if (a) a.hidden = !unread;
   if (b) b.hidden = !unread;
-  renderNoticeBanner(unread);
+  renderNoticeBanner(shouldShowNoticeModal(noticeState.items));
   setNoticeAppBadge(unread);
 }
 
@@ -350,12 +367,13 @@ function bindNotices() {
   if (!pop || !close) return;
   close.addEventListener('click', () => { pop.hidden = true; });
   pop.addEventListener('click', e => { if (e.target === pop) pop.hidden = true; });
-  /* 새 공지 모달: ✕ · 확인 · 바깥 클릭 모두 같은 '읽음' 처리. 다른 모달과 같은 관례다. */
-  const seen = () => { markNoticesSeen(noticeState.items); renderNoticeDot(); };
+  /* ✕ = 배너만 닫음(빨간 점 유지) · 확인 = 읽음(점까지 지움).
+     바깥·배경 클릭은 **아무 일도 하지 않는다**(GY 2026-09-04) — 실수로 스쳐서 공지를
+     못 보고 넘기는 일이 없게. 다른 모달(sheetpop)의 바깥 클릭 관례와 일부러 다르다. */
   const bx = document.getElementById('ntcBannerX');
   const bok = document.getElementById('ntcBannerOk');
-  const bwrap = document.getElementById('ntcBanner');
-  if (bx) bx.addEventListener('click', seen);
-  if (bok) bok.addEventListener('click', seen);
-  if (bwrap) bwrap.addEventListener('click', e => { if (e.target === bwrap) seen(); });
+  if (bx) bx.addEventListener('click', () => { markNoticeBannerDismissed(noticeState.items); renderNoticeDot(); });
+  if (bok) bok.addEventListener('click', () => {
+    markNoticesSeen(noticeState.items); markNoticeBannerDismissed(noticeState.items); renderNoticeDot();
+  });
 }
