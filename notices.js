@@ -59,8 +59,11 @@ function parseNotices(values) {
       _i: i,
     };
   }).filter(n => n.date || n.title);
-  /* 날짜 내림차순. ISO 문자열이라 사전순 = 시간순. 동률이면 시트 행 순서 유지. */
-  items.sort((a, b) => (a.date === b.date ? a._i - b._i : (a.date < b.date ? 1 : -1)));
+  /* 날짜 내림차순. ISO 문자열이라 사전순 = 시간순.
+     같은 날짜면 **시트 아래쪽 행이 더 새것**이다(공지는 항상 아래에 덧붙는다) — 그래서 _i 도
+     내림차순. 예전에는 하루 한 행뿐이라 동률 처리가 드러나지 않았지만, 2026-09-04 부터
+     같은 날짜에도 행을 따로 쌓기로 해서 여기가 틀리면 새 공지 모달이 그날의 **옛** 공지를 띄운다. */
+  items.sort((a, b) => (a.date === b.date ? b._i - a._i : (a.date < b.date ? 1 : -1)));
   return items;
 }
 
