@@ -151,14 +151,20 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 .ntcmsg{font-size:13px;color:#73726c;padding:16px 0;text-align:center;line-height:1.6;white-space:pre-line}
 .ntcmore{display:block;width:100%;font:inherit;font-size:13px;color:#73726c;background:none;border:0;padding:10px 0;cursor:pointer}
 
-/* 새 공지 배너 — 안 읽은 공지가 있을 때만. ✕ 는 빨간 점과 같은 '읽음' 처리를 한다. */
-.ntcbanner{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding:9px 10px;
-  font-size:12px;color:#7a2f2f;background:#FDECEC;border:0.5px solid #F0BDBD;border-radius:6px}
-.ntcbanner[hidden]{display:none}
-.ntcbanner-txt{flex:1;min-width:0}
-.ntcbanner-date{font-size:11px;opacity:.75;margin-bottom:2px}
-.ntcbanner-body{white-space:pre-wrap;word-break:break-word;line-height:1.45}
-.ntcbanner-x{flex:none;border:0;background:transparent;color:#7a2f2f;opacity:.6;
-  font-size:14px;line-height:1;padding:2px 4px;cursor:pointer}
-.ntcbanner-x:hover{opacity:1}
-
+/* 새 공지 모달 — 가운데 띄우고 뒤 시간표는 블러. ✕/확인 은 빨간 점과 같은 '읽음' 처리.
+   backdrop-filter 를 못 쓰는 브라우저에서도 반투명 바탕만으로 충분히 읽힌다(점진적 향상). */
+.ntcmodal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:rgba(31,30,28,.38);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.ntcmodal[hidden]{display:none}
+.ntcmodal-card{position:relative;background:#fff;border-radius:14px;max-width:420px;width:100%;
+  padding:18px 18px 16px;box-shadow:0 10px 40px rgba(0,0,0,.22);text-align:left}
+.ntcmodal-x{position:absolute;top:8px;right:10px;border:0;background:transparent;color:#8a8577;
+  font-size:15px;line-height:1;padding:4px 6px;cursor:pointer}
+.ntcmodal-x:hover{color:#2b2a27}
+.ntcmodal-tag{display:inline-block;font-size:11px;font-weight:700;color:#B03A3A;background:#FDECEC;
+  border-radius:4px;padding:2px 7px;margin-bottom:8px}
+.ntcmodal-date{font-size:13px;font-weight:600;color:#2b2a27;margin-bottom:6px;padding-right:20px}
+.ntcmodal-body{font-size:13px;line-height:1.55;color:#4a4741;white-space:pre-wrap;word-break:break-word;
+  max-height:52vh;max-height:52dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.ntcmodal-ok{margin-top:14px;width:100%}

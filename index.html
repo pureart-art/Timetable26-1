@@ -32,19 +32,20 @@
     </nav>
   </header>
 
-  <div id="ntcBanner" class="ntcbanner" role="status" hidden>
-    <div class="ntcbanner-txt">
-      <div id="ntcBannerDate" class="ntcbanner-date"></div>
-      <div id="ntcBannerBody" class="ntcbanner-body"></div>
-    </div>
-    <button id="ntcBannerX" class="ntcbanner-x" type="button" aria-label="공지 확인함">✕</button>
-  </div>
-
   <div id="grid" class="gridc" aria-live="polite"></div>
 
   <div id="notice" class="notice" hidden></div>
 </div>
 
+<div id="ntcBanner" class="ntcmodal" role="dialog" aria-modal="true" aria-labelledby="ntcBannerDate" hidden>
+  <div class="ntcmodal-card">
+    <button id="ntcBannerX" class="ntcmodal-x" type="button" aria-label="닫기">✕</button>
+    <div class="ntcmodal-tag">새 공지</div>
+    <div id="ntcBannerDate" class="ntcmodal-date"></div>
+    <div id="ntcBannerBody" class="ntcmodal-body"></div>
+    <button id="ntcBannerOk" class="nbtn ntcmodal-ok" type="button">확인</button>
+  </div>
+</div>
 <div id="sheetpop" class="sheetpop" hidden>
   <div class="sheetpop-inner">
     <div id="popBody"></div>

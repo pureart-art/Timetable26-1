@@ -295,8 +295,9 @@ function renderNoticeDot() {
   setNoticeAppBadge(unread);
 }
 
-/* 안 읽은 공지가 있으면 시간표 위에 배너로 먼저 보여준다. ✕ 는 공지 패널을 여는 것과
-   똑같은 '읽음' 처리(markNoticesSeen) — 그래서 배너·점이 함께 사라지고 다시 안 뜬다.
+/* 안 읽은 공지가 있으면 시간표를 블러 처리한 위에 모달로 먼저 보여준다. 공지가 길어질 수
+   있어 인라인 띠 대신 모달로 뒀다(본문은 카드 안에서 스크롤). ✕·확인·바깥 클릭은 공지 패널을
+   여는 것과 똑같은 '읽음' 처리(markNoticesSeen) — 배너·점이 함께 사라지고 다시 안 뜬다.
    새 공지가 올라오면 최신 날짜가 갱신되므로 그때 다시 뜬다. */
 function renderNoticeBanner(unread) {
   const el = document.getElementById('ntcBanner');
@@ -349,6 +350,12 @@ function bindNotices() {
   if (!pop || !close) return;
   close.addEventListener('click', () => { pop.hidden = true; });
   pop.addEventListener('click', e => { if (e.target === pop) pop.hidden = true; });
-  const x = document.getElementById('ntcBannerX');
-  if (x) x.addEventListener('click', () => { markNoticesSeen(noticeState.items); renderNoticeDot(); });
+  /* 새 공지 모달: ✕ · 확인 · 바깥 클릭 모두 같은 '읽음' 처리. 다른 모달과 같은 관례다. */
+  const seen = () => { markNoticesSeen(noticeState.items); renderNoticeDot(); };
+  const bx = document.getElementById('ntcBannerX');
+  const bok = document.getElementById('ntcBannerOk');
+  const bwrap = document.getElementById('ntcBanner');
+  if (bx) bx.addEventListener('click', seen);
+  if (bok) bok.addEventListener('click', seen);
+  if (bwrap) bwrap.addEventListener('click', e => { if (e.target === bwrap) seen(); });
 }
