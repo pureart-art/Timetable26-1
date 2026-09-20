@@ -81,7 +81,7 @@ body{margin:0;padding:var(--padtop) var(--padx) var(--padbot);background:#f0eee8
    문서 0~40px 가 흐려지고 40px 부터 또렷했다. 첫 줄을 그 밖으로 내보내기만 하면 된다.
    max-width 규칙보다 뒤에 와야 폰에서 이 값이 이긴다. */
 @media (display-mode:standalone){
-  :root{--padtop:44px}
+  :root{--padtop:40px}
 }
 
 /* ===== 월간 보기 ===== */

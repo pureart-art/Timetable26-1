@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>상단 블러 밴드 측정</title>
+<title>여백 튜너</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#f0eee8">
 <link rel="manifest" href="diag-manifest.json">
@@ -11,61 +11,63 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="측정">
+<meta name="apple-mobile-web-app-title" content="여백튜너">
 <style>
   *{box-sizing:border-box}
-  body{margin:0;padding:0;background:#f0eee8;color:#1f1e1c;
+  /* 실제 앱과 같은 글꼴·색·크기라야 여기서 읽은 값을 그대로 옮길 수 있다 */
+  body{margin:0;padding:var(--p,40px) 8px 10px;background:#f0eee8;color:#1f1e1c;
     font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
     -webkit-font-smoothing:antialiased}
-  /* safe-area 를 CSS 로만 재어서 JS 가 읽는다 — 같은 사실을 두 곳에서 유도하지 않는다 */
-  #sat{position:absolute;top:0;left:0;width:1px;height:env(safe-area-inset-top,0px);visibility:hidden}
-  #sab{position:absolute;top:0;left:0;width:1px;height:env(safe-area-inset-bottom,0px);visibility:hidden}
-  #sal{position:absolute;top:0;left:0;width:1px;height:env(safe-area-inset-left,0px);visibility:hidden}
-  #sar{position:absolute;top:0;left:0;width:1px;height:env(safe-area-inset-right,0px);visibility:hidden}
-  .row{height:20px;line-height:20px;font-size:13px;font-weight:500;padding-left:6px;white-space:nowrap}
-  .row:nth-child(odd){background:#e6e3db}
-  .ref{height:20px;background:#1f1e1c}
-  h2{font-size:14px;margin:18px 6px 6px}
-  table{border-collapse:collapse;font-size:13px;margin:0 6px}
-  td{border:1px solid #b5b2aa;padding:3px 7px;font-variant-numeric:tabular-nums}
-  td:first-child{color:#5f5e5a}
-  .tall{height:1400px;background:linear-gradient(#f0eee8,#d8d4ca);padding:8px;font-size:13px}
+  .title{font-size:18px;font-weight:500}
+  .title small{font-weight:400;color:#5f5e5a;margin-left:8px}
+  .meta{font-size:11px;color:#8a897f;margin-top:3px}
+  .badge{display:inline-block;border:.5px solid #b5b2aa;border-radius:4px;padding:0 5px;margin-right:6px;font-size:10px;color:#73726c}
+  .now{margin:26px 0 10px;font-size:15px;font-weight:600}
+  .now b{font-size:30px;font-variant-numeric:tabular-nums}
+  .pads{display:flex;flex-wrap:wrap;gap:8px}
+  .pads button{font:inherit;font-size:15px;font-weight:600;min-width:56px;padding:11px 0;
+    background:#fff;border:.5px solid #b5b2aa;border-radius:8px;color:#3a3a37;
+    -webkit-tap-highlight-color:transparent}
+  .pads button[aria-pressed="true"]{background:#2E75B6;border-color:#2E75B6;color:#fff}
+  .how{margin-top:20px;font-size:13.5px;line-height:1.6;color:#3a3a37;
+    background:#fff;border:.5px solid #CFCCC4;border-radius:10px;padding:12px 14px}
+  .how b{color:#1f1e1c}
 </style>
 </head>
 <body>
-<div id="sat"></div><div id="sab"></div><div id="sal"></div><div id="sar"></div>
-<div id="ruler"></div>
-<h2>측정값</h2>
-<table id="out"></table>
-<div class="tall">여기부터 길게 스크롤 — 위로 스크롤해 올린 글자가 상단에서 흐려지면 밴드는 <b>화면 고정</b>, 안 흐려지면 <b>문서 상단에만</b> 있는 것.</div>
-<script>
-  // 문서 최상단부터 20px 간격 눈금 — 어디까지 흐려지는지 스크린샷으로 읽는다
-  var r = document.getElementById('ruler'), h = '';
-  for (var y = 0; y < 260; y += 20) {
-    h += '<div class="row">' + y + 'px 가나다 ABC 123 의학과</div>';
-  }
-  r.innerHTML = '<div class="ref"></div>' + h;
+<!-- 밴드에 실제로 걸리는 건 이 제목 한 줄. 앱의 헤더와 똑같이 생겼다. -->
+<div class="title">의학과 26-2 시간표: 3주 <small>2026. 9. 14 – 9. 20</small></div>
+<div class="meta"><span class="badge">v213</span>마지막 갱신 15시 41분 35초</div>
 
-  function px(id){ return Math.round(document.getElementById(id).getBoundingClientRect().height * 100) / 100; }
-  var vv = window.visualViewport || {};
-  var rows = [
-    ['safe-area-inset-top',    px('sat') + ' px'],
-    ['safe-area-inset-bottom', px('sab') + ' px'],
-    ['safe-area-inset-left',   px('sal') + ' px'],
-    ['safe-area-inset-right',  px('sar') + ' px'],
-    ['display-mode standalone', String(matchMedia('(display-mode: standalone)').matches)],
-    ['display-mode fullscreen', String(matchMedia('(display-mode: fullscreen)').matches)],
-    ['navigator.standalone',   String(navigator.standalone)],
-    ['innerWidth x innerHeight', innerWidth + ' x ' + innerHeight],
-    ['screen', screen.width + ' x ' + screen.height],
-    ['devicePixelRatio',       String(devicePixelRatio)],
-    ['visualViewport offsetTop', String(vv.offsetTop)],
-    ['visualViewport height',  String(vv.height)],
-    ['userAgent',              navigator.userAgent]
-  ];
-  document.getElementById('out').innerHTML = rows.map(function(p){
-    return '<tr><td>' + p[0] + '</td><td>' + p[1] + '</td></tr>';
-  }).join('');
+<div class="now">지금 위쪽 여백 <b id="cur">40</b>px</div>
+<div class="pads" id="pads"></div>
+
+<div class="how">
+  위 숫자를 <b>큰 값부터 하나씩 내려가며</b> 누르고, 그때마다 맨 윗줄
+  <b>“의학과 26-2 시간표: 3주”</b>가 또렷한지만 봐.<br><br>
+  흐려지기 <b>직전</b> 값이 우리가 쓸 수 있는 가장 작은 여백이야. 그 숫자만 알려줘.
+</div>
+
+<script>
+  var VALUES = [40, 36, 32, 28, 24, 20, 16, 12];
+  var pads = document.getElementById('pads'), cur = document.getElementById('cur');
+  function pick(v){
+    document.documentElement.style.setProperty('--p', v + 'px');
+    cur.textContent = v;
+    [].forEach.call(pads.children, function(b){
+      b.setAttribute('aria-pressed', String(+b.dataset.v === v));
+    });
+    try { localStorage.setItem('pad', v); } catch (e) {}
+  }
+  VALUES.forEach(function(v){
+    var b = document.createElement('button');
+    b.textContent = v; b.dataset.v = v;
+    b.addEventListener('click', function(){ pick(v); });
+    pads.appendChild(b);
+  });
+  var saved;
+  try { saved = parseInt(localStorage.getItem('pad'), 10); } catch (e) {}
+  pick(VALUES.indexOf(saved) >= 0 ? saved : 40);
 </script>
 </body>
 </html>
