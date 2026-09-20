@@ -1,8 +1,9 @@
 /* ===== 레퍼런스(시간표_엑셀형식_2주_전체.html)와 픽셀 동일한 격자 ===== */
 *{box-sizing:border-box}
-body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+:root{--padtop:12px;--padx:12px;--padbot:12px}
+body{margin:0;padding:var(--padtop) var(--padx) var(--padbot);background:#f0eee8;color:#1f1e1c;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
 /* 고정 높이(dvh) + overflow 숨김 → 어떤 기기에서도 스크롤 없이 한 화면 */
-.page{max-width:none;margin:0;display:flex;flex-direction:column;height:calc(100vh - 24px);height:calc(100dvh - 24px);overflow:hidden}
+.page{max-width:none;margin:0;display:flex;flex-direction:column;height:calc(100vh - var(--padtop) - var(--padbot));height:calc(100dvh - var(--padtop) - var(--padbot));overflow:hidden}
 .gridc{flex:1;min-height:0}
 .title{font-size:18px;font-weight:500}
 .title small{font-weight:400;color:#5f5e5a;margin-left:8px;font-variant-numeric:tabular-nums}
@@ -71,8 +72,16 @@ body{margin:0;padding:12px 12px;background:#f0eee8;color:#1f1e1c;font-family:-ap
 .gridc.compact .dn{font-size:10px}
 .gridc.compact .dd{font-size:8px}
 @media (max-width:719px){
-  body{padding:10px 8px}
-  .page{height:calc(100vh - 20px);height:calc(100dvh - 20px)}
+  :root{--padtop:10px;--padx:8px;--padbot:10px}
+}
+
+/* iOS 26+ 는 설치형 웹앱 화면 상단에 시스템 블러 밴드를 칠한다(사파리 탭에는 없다).
+   밴드는 화면 고정이고, env(safe-area-inset-top) 은 0 을 보고해 CSS 가 밴드 높이를
+   알아낼 길이 없다 — 그래서 실측값을 상수로 둔다. iPhone 390x844 / iOS 27 설치 앱에서
+   문서 0~40px 가 흐려지고 40px 부터 또렷했다. 첫 줄을 그 밖으로 내보내기만 하면 된다.
+   max-width 규칙보다 뒤에 와야 폰에서 이 값이 이긴다. */
+@media (display-mode:standalone){
+  :root{--padtop:44px}
 }
 
 /* ===== 월간 보기 ===== */
