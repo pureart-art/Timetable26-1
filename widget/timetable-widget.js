@@ -29,7 +29,7 @@
 //      세고(격자 높이·fetch 범위·병합 클램프 전부 파생), 시간열 축약은 PERIODS[].s로 옮겼다.
 //      아직 저녁 행이 없는 주는 1단계가 아는 다음 헤더 행으로 잘라 빈 행으로 남긴다
 //      — 안 그러면 다음 주 날짜가 저녁 칸에 수업처럼 그려진다. 캐시 키 v5→v6.
-// v21: 교수명 아래 3번째 줄에 학습부 번호(예: 호흡18)를 하늘색으로. `약어N: 초안/검안` 줄의
+// v21: 교수명 아래 3번째 줄에 학습부 번호(예: 호흡18)를 파스텔 파랑으로. `약어N: 초안/검안` 줄의
 //      콜론 앞만 쓰고 학습부원 이름은 뺀다. 칸 높이가 모자라면 글씨를 한 단계 줄여 넣고,
 //      그래도 안 들어가는 칸만 번호 없이 예전 그대로(26-2는 2시간 칸이라 중형까지 들어감).
 
@@ -38,7 +38,7 @@ const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
 const API_KEY = 'AIzaSyCGjLnlXFA_Bi2mCKlUHyBUMxbE5Dlbj0k';   // 사이트용(리퍼러 제한) 키
 const WIDGET_KEY = '';                                        // 위젯 전용 예비 키 — 필요 시 입력
 const TAB = '시간표';
-const STUDY_NO_COLOR = new Color('#039BE5');   // 학습부 번호 줄(하늘색)
+const STUDY_NO_COLOR = new Color('#4A80C2');   // 학습부 번호 줄(차분한 파스텔 파랑)
 
 /* ===== 개인 하이라이트 (레포 밖 로컬 파일 tt-hl.txt) ===== */
 let HL_KEYWORDS = [];
