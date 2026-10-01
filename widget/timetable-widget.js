@@ -29,12 +29,16 @@
 //      세고(격자 높이·fetch 범위·병합 클램프 전부 파생), 시간열 축약은 PERIODS[].s로 옮겼다.
 //      아직 저녁 행이 없는 주는 1단계가 아는 다음 헤더 행으로 잘라 빈 행으로 남긴다
 //      — 안 그러면 다음 주 날짜가 저녁 칸에 수업처럼 그려진다. 캐시 키 v5→v6.
+// v21: 교수명 아래 3번째 줄에 학습부 번호(예: 호흡18)를 하늘색으로. `약어N: 초안/검안` 줄의
+//      콜론 앞만 쓰고 학습부원 이름은 뺀다. 칸 높이가 모자라면 글씨를 한 단계 줄여 넣고,
+//      그래도 안 들어가는 칸만 번호 없이 예전 그대로(26-2는 2시간 칸이라 중형까지 들어감).
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
 const API_KEY = 'AIzaSyCGjLnlXFA_Bi2mCKlUHyBUMxbE5Dlbj0k';   // 사이트용(리퍼러 제한) 키
 const WIDGET_KEY = '';                                        // 위젯 전용 예비 키 — 필요 시 입력
 const TAB = '시간표';
+const STUDY_NO_COLOR = new Color('#039BE5');   // 학습부 번호 줄(하늘색)
 
 /* ===== 개인 하이라이트 (레포 밖 로컬 파일 tt-hl.txt) ===== */
 let HL_KEYWORDS = [];
@@ -473,11 +477,38 @@ function drawWeekGrid(ctx, week, staleTag, ox, oy, W, H) {
       const prof = profLines.length ? profName(profLines[0].text) : '';   /* 과명 제거: (추일한) */
       const profRed = profLines[0] && (isRedHex(profLines[0].color) || matchKeyword(profLines[0].text, HL_KEYWORDS));
       const profColor = new Color(profRed ? '#FF0000' : '#000000');
+      /* 학습부 번호: `호흡18: 초안/검안` 줄의 콜론 앞만 — 학습부원 이름은 들어갈 자리가 없어 뺀다.
+         진짜 과목명 줄이 있을 때만(칸 전체가 `그룹장2: …/…` 같은 공지면 그게 곧 제목이라 번호 아님). */
+      const studyNo = titleLines.length ? cm.lines.filter(isStaff)
+        .map(l => (l.text.match(/^\(?\s*([^\s:()/]{1,10})\s*:/) || [])[1]).filter(Boolean).join(' ') : '';
       ctx.setTextAlignedCenter();
 
       const lh = fTitle + 2;                 /* 한 줄 높이 */
       const profFs = Math.max(7, fTitle - 1);
-      if (prof && hh >= lh + profFs + 3) {
+      /* 번호 줄까지 들어가면 글씨를 한 단계 줄여서라도 넣는다. 각 줄 상자 높이는 기존 관례대로 f+2
+         — 긴 과목명이 상자 안에서 두 줄로 접혀도 둘째 줄이 잘려 아래 줄을 덮지 않는다.
+         줄 간격은 1.1f(상자끼리 1px 남짓 겹치는 건 윗줄 아래 여백뿐이라 무해).
+         끝내 안 들어가는 칸은 번호만 빼고 아래 기존 2줄/1줄 그대로. */
+      let stack = null;
+      if (studyNo && !cm.isExam) {
+        const items = (prof ? [[titleText, titleColor, fTitle], [prof, profColor, profFs]] : [[titleText, titleColor, fTitle]])
+          .concat([[studyNo, STUDY_NO_COLOR, profFs - 1]]);
+        for (const s of [0, 1]) {
+          const fs = items.map(it => Math.max(6, it[2] - s));
+          const need = fs.reduce((a, f, i) => a + (i === fs.length - 1 ? f + 2 : f * 1.1), 0);
+          if (need <= hh - 1) { stack = { items, fs, need }; break; }
+        }
+      }
+      if (stack) {
+        let ty = y + Math.max(1, (hh - stack.need) / 2);
+        stack.items.forEach((it, i) => {
+          const f = stack.fs[i];
+          ctx.setFont(Font.boldSystemFont(f));
+          ctx.setTextColor(it[1]);
+          ctx.drawTextInRect(it[0], new Rect(x + 2, ty, ww - 4, f + 2));
+          ty += f * 1.1;
+        });
+      } else if (prof && hh >= lh + profFs + 3) {
         /* 과목명 1줄 + 바로 아래 줄에 교수명(빈 줄 없이). 2줄 블록을 세로 가운데 */
         const top = y + Math.max(2, (hh - (lh + profFs + 3)) / 2);
         ctx.setFont(Font.boldSystemFont(fTitle));

@@ -113,7 +113,7 @@ canvas{width:715px;max-width:100%;height:auto}
 
   const env = {
     Request, FileManager, ListWidget, Color, Font, Size, Rect, Path, DrawContext, Timer,
-    config: { runsInWidget: true, widgetFamily: 'extraLarge' },
+    config: { runsInWidget: true, widgetFamily: new URLSearchParams(location.search).get('f') || 'extraLarge' },   /* ?f=large 등으로 크기 바꿔 미리보기 */
     /* ?p=... 로 실기기 Parameter를 그대로 미리보기 (예: ?p=1, ?p=2주간). 없으면 이번 주. */
     args: { widgetParameter: new URLSearchParams(location.search).get('p'), queryParameters: {} },
     /* v15의 tapUrl()이 Script.name()으로 재실행 URL을 만든다 — 없으면 PWA로 조용히 폴백해
