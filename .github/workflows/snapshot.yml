@@ -54,8 +54,15 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add data/snapshot.js
             git commit -m "chore: refresh timetable snapshot ($(date -u +%Y-%m-%dT%H:%MZ))"
-            git push
-            echo "snapshot updated."
+            # GitHub 쪽 일시 오류(500)로 push 가 거절되면 실패 메일이 간다(2026-11-04 19:48 실사고).
+            # 다음 실행이 어차피 복구하지만, 같은 실행 안에서 몇 번 더 밀어 본다.
+            for i in 1 2 3; do
+              if git push; then echo "snapshot updated."; exit 0; fi
+              echo "push 실패 (${i}/3) — $((i * 15))초 뒤 다시 시도"
+              sleep $((i * 15))
+              git pull --rebase origin main || true
+            done
+            exit 1
           else
             echo "no change — snapshot already current."
           fi
