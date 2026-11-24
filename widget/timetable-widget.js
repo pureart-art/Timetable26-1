@@ -32,6 +32,8 @@
 // v21: 교수명 아래 3번째 줄에 학습부 번호(예: 호흡18)를 파스텔 파랑으로. `약어N: 초안/검안` 줄의
 //      콜론 앞만 쓰고 학습부원 이름은 뺀다. 칸 높이가 모자라면 글씨를 한 단계 줄여 넣고,
 //      그래도 안 들어가는 칸만 번호 없이 예전 그대로(26-2는 2시간 칸이라 중형까지 들어감).
+// v22: 미배정 수업은 학습부 번호를 세지 않아 라벨이 `순환: 미배정/미배정`(숫자 없음)이 됐다
+//      → 콜론 앞에 숫자가 없으면 번호가 아니므로 번호 줄을 그리지 않는다('순환'만 덩그러니 X).
 
 const PWA_URL = 'https://pureart-art.github.io/Timetable26-1/';
 const SHEET_ID = '1xcH1X2AOqbEghejABgNL55EfL8zjOXB7AYVYJZ0IaB4';
@@ -480,7 +482,7 @@ function drawWeekGrid(ctx, week, staleTag, ox, oy, W, H) {
       /* 학습부 번호: `호흡18: 초안/검안` 줄의 콜론 앞만 — 학습부원 이름은 들어갈 자리가 없어 뺀다.
          진짜 과목명 줄이 있을 때만(칸 전체가 `그룹장2: …/…` 같은 공지면 그게 곧 제목이라 번호 아님). */
       const studyNo = titleLines.length ? cm.lines.filter(isStaff)
-        .map(l => (l.text.match(/^\(?\s*([^\s:()/]{1,10})\s*:/) || [])[1]).filter(Boolean).join(' ') : '';
+        .map(l => (l.text.match(/^\(?\s*([^\s:()/]{1,10})\s*:/) || [])[1]).filter(s => s && /\d/.test(s)).join(' ') : '';
       ctx.setTextAlignedCenter();
 
       const lh = fTitle + 2;                 /* 한 줄 높이 */
